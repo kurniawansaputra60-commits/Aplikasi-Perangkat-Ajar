@@ -1,54 +1,36 @@
-import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Default / fallback demo Supabase credentials if user hasn't supplied custom project keys
-const DEFAULT_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://demo-perangkat-ajar.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbW8iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwMDA0MDAwMCw';
-
+const DEFAULT_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const DEFAULT_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabaseCredentials() {
-  const customUrl = localStorage.getItem('user_supabase_url');
-  const customKey = localStorage.getItem('user_supabase_key');
-  return {
-    url: customUrl || DEFAULT_SUPABASE_URL,
-    anonKey: customKey || DEFAULT_SUPABASE_ANON_KEY,
-    isCustom: Boolean(customUrl && customKey),
-  };
+  const url = DEFAULT_SUPABASE_URL;
+  const anonKey = DEFAULT_SUPABASE_ANON_KEY;
+  return { url, anonKey, isCustom: false };
 }
 
 export function getSupabaseClient(): SupabaseClient {
   const { url, anonKey } = getSupabaseCredentials();
+  if (!url || !anonKey) throw new Error('Supabase belum dikonfigurasi. Atur VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.');
   if (!supabaseInstance) {
-    supabaseInstance = createClient(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    });
+    supabaseInstance = createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   }
   return supabaseInstance;
 }
 
-export function resetSupabaseClient() {
-  supabaseInstance = null;
-}
+export function resetSupabaseClient() { supabaseInstance = null; }
 
-// ==================== BYOK (Bring Your Own Key) Helpers ====================
 export function getGeminiApiKey(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('user_gemini_api_key');
 }
-
 export function setGeminiApiKey(key: string): void {
   if (typeof window === 'undefined') return;
-  if (key && key.trim()) {
-    localStorage.setItem('user_gemini_api_key', key.trim());
-  } else {
-    localStorage.removeItem('user_gemini_api_key');
-  }
+  if (key?.trim()) localStorage.setItem('user_gemini_api_key', key.trim());
+  else localStorage.removeItem('user_gemini_api_key');
 }
 
-// ==================== Account & License Helpers ====================
 export interface AppUserAccount {
   id: string;
   email: string;
@@ -62,159 +44,82 @@ export function getCurrentUserAccount(): AppUserAccount | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('perangkat_ajar_user_account');
   if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (_) {
-    return null;
-  }
+  try { return JSON.parse(raw); } catch { return null; }
 }
-
 export function setCurrentUserAccount(account: AppUserAccount | null): void {
   if (typeof window === 'undefined') return;
-  if (account) {
-    localStorage.setItem('perangkat_ajar_user_account', JSON.stringify(account));
-  } else {
-    localStorage.removeItem('perangkat_ajar_user_account');
-  }
-}
-
-export function getValidLicenseCodes(): string[] {
-  const codes = (import.meta.env.VITE_LICENSE_CODES || 'PRO-2026-SD,GURU-MERDEKA-PRO,DEEP-LEARNING-2026')
-    .split(',')
-    .map((code) => code.trim().toUpperCase())
-    .filter(Boolean);
-
-  return Array.from(new Set(codes));
-}
-
-export async function verifyLicenseCodeWithServer(code: string, secret?: string): Promise<{ success: boolean; message: string; code?: string }> {
-  const cleanCode = String(code || '').trim();
-
-  if (!cleanCode) {
-    return { success: false, message: 'Kode lisensi wajib diisi.' };
-  }
-
-  try {
-    const res = await fetch('/api/license/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: cleanCode,
-        secret: secret || undefined,
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      return {
-        success: false,
-        message: data?.message || 'Lisensi tidak valid untuk akun ini.',
-      };
-    }
-
-    return {
-      success: true,
-      message: data?.message || 'Lisensi valid.',
-      code: data?.code || cleanCode,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: 'Tidak dapat memvalidasi lisensi saat ini. Silakan coba beberapa saat lagi.',
-    };
-  }
+  if (account) localStorage.setItem('perangkat_ajar_user_account', JSON.stringify(account));
+  else localStorage.removeItem('perangkat_ajar_user_account');
 }
 
 export async function activateProLicense(licenseCode: string): Promise<{ success: boolean; message: string }> {
-  const user = getCurrentUserAccount();
-  const cleanCode = licenseCode.trim().toUpperCase();
+  const client = getSupabaseClient();
+  const { data: { session }, error: sessionError } = await client.auth.getSession();
+  if (sessionError || !session) return { success: false, message: 'Silakan masuk sebelum mengaktifkan lisensi.' };
+  const code = String(licenseCode || '').trim();
+  if (!code) return { success: false, message: 'Masukkan kode lisensi.' };
 
-  if (!cleanCode || cleanCode.length < 5) {
-    return { success: false, message: 'Kode aktivasi tidak valid. Periksa kembali format kode lisensi.' };
-  }
-
-  const serverResult = await verifyLicenseCodeWithServer(cleanCode);
-  if (!serverResult.success) {
-    return { success: false, message: serverResult.message };
-  }
-
-  const updatedAccount: AppUserAccount = {
-    id: user?.id || 'user-' + Date.now(),
-    email: user?.email || 'guru.sd@sekolah.sch.id',
-    fullName: user?.fullName || 'Guru Sekolah Dasar',
-    isProUser: true,
-    licenseCode: cleanCode,
-    activatedAt: new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }),
-  };
-
-  setCurrentUserAccount(updatedAccount);
-  return { success: true, message: 'Selamat! Akun Guru Pro berhasil diaktivasi secara aman.' };
-}
-
-// ==================== Supabase Cloud Sync Helpers ====================
-export async function syncPackageToSupabase(packageData: any, userId?: string): Promise<boolean> {
   try {
-    const supabase = getSupabaseClient();
-    const effectiveUserId = userId || getCurrentUserAccount()?.id || 'guest-teacher';
+    const response = await fetch('/api/license/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ code }),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) return { success: false, message: result?.message || 'Kode tidak valid atau sudah digunakan.' };
 
-    const { error } = await supabase.from('teaching_packages').upsert(
-      {
-        id: packageData.id,
-        user_id: effectiveUserId,
-        name: packageData.name,
-        data: packageData,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' }
-    );
-
-    if (error) {
-      console.warn('Supabase sync notice (using local storage fallback if table missing):', error.message);
-      // Fallback local persistence per package ID
-      localStorage.setItem(`cloud_package_${packageData.id}`, JSON.stringify(packageData));
-      return true;
-    }
-
-    return true;
-  } catch (e) {
-    console.warn('Fallback sync to localStorage for package:', packageData.id);
-    localStorage.setItem(`cloud_package_${packageData.id}`, JSON.stringify(packageData));
-    return true;
+    const user = session.user;
+    setCurrentUserAccount({
+      id: user.id,
+      email: user.email || '',
+      fullName: user.user_metadata?.full_name || '',
+      isProUser: true,
+      licenseCode: code.toUpperCase(),
+      activatedAt: new Date().toLocaleDateString('id-ID'),
+    });
+    return { success: true, message: result?.message || 'Lisensi berhasil diaktifkan.' };
+  } catch {
+    return { success: false, message: 'Tidak dapat menghubungi server aktivasi. Silakan coba lagi.' };
   }
 }
 
-export async function fetchPackageFromSupabase(packageId: string): Promise<any | null> {
+// One cloud snapshot per authenticated user. RLS in Supabase enforces ownership.
+export async function syncPackageToSupabase(packageData: any): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from('teaching_packages')
-      .select('data')
-      .eq('id', packageId)
-      .maybeSingle();
-
-    if (data?.data) {
-      return data.data;
-    }
-
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return false;
+    const { error } = await supabase.from('teaching_packages').upsert({
+      id: user.id,
+      user_id: user.id,
+      name: 'Perangkat Ajar',
+      data: packageData,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
     if (error) {
-      console.warn('Fetch package notice:', error.message);
+      console.warn('Cloud save failed:', error.message);
+      return false;
     }
-  } catch (e) {
-    console.warn('Supabase fetch fallback to local storage for:', packageId);
+    return true;
+  } catch (error) {
+    console.warn('Cloud save unavailable:', error);
+    return false;
   }
+}
 
-  // Fallback to local storage
-  const local = localStorage.getItem(`cloud_package_${packageId}`);
-  if (local) {
-    try {
-      return JSON.parse(local);
-    } catch (_) {}
+export async function fetchPackageFromSupabase(_packageId: string): Promise<any | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return null;
+    const { data, error } = await supabase.from('teaching_packages').select('data').eq('user_id', user.id).maybeSingle();
+    if (error) {
+      console.warn('Cloud load failed:', error.message);
+      return null;
+    }
+    return data?.data ?? null;
+  } catch (error) {
+    console.warn('Cloud load unavailable:', error);
+    return null;
   }
-
-  return null;
 }
