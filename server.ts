@@ -162,6 +162,13 @@ app.post('/api/ai/generate', async (req, res) => {
 });
 
 async function startServer() {
+  const isVercel = Boolean(process.env.VERCEL);
+  if (isVercel) {
+    // Di arsitektur serverless Vercel, Vercel mengelola HTTP routing dan static build otomatis
+    // Jangan jalankan app.listen() agar tidak memblokir fungsi serverless
+    return;
+  }
+
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
@@ -183,3 +190,5 @@ async function startServer() {
 }
 
 startServer();
+
+export default app;

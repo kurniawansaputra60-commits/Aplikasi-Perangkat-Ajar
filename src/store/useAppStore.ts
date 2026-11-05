@@ -57,16 +57,45 @@ export interface AppStore extends AppState {
   resetToDefault: () => void;
 }
 
+// Helper to extract pure data snapshot from AppState, stripping functions to avoid DataCloneError
+export function extractPureAppState(state: any): AppState {
+  return {
+    currentStep: state.currentStep,
+    activePackageId: state.activePackageId,
+    packages: state.packages,
+    profile: state.profile,
+    calendar: state.calendar,
+    cp: state.cp,
+    atp: state.atp,
+    prota: state.prota,
+    promes: state.promes,
+    kktp: state.kktp,
+    activeModuleTp: state.activeModuleTp,
+    modules: state.modules,
+    lkpd: state.lkpd,
+    assessmentPlans: state.assessmentPlans,
+    step12: state.step12,
+    analysis: state.analysis,
+    stepStatuses: state.stepStatuses,
+    regulations: state.regulations,
+    lastSavedAt: state.lastSavedAt,
+  };
+}
+
 // Debounce helper for saving to IndexedDB
 let saveTimeout: any = null;
-const debouncedSaveToIndexedDb = (stateToSave: AppState) => {
+const debouncedSaveToIndexedDb = (stateSnapshot: any) => {
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     try {
-      await localforage.setItem('appState', stateToSave);
+      // Destrukturisasi dan ambil HANYA properti data murni (tanpa method/fungsi aksi Zustand)
+      // untuk mencegah error DataCloneError pada IndexedDB
+      const pureData = extractPureAppState(stateSnapshot);
+
+      await localforage.setItem('appState', pureData);
       // Backup to localStorage as secondary fallback
       try {
-        localStorage.setItem('perangkat_ajar_state_v1_3', JSON.stringify(stateToSave));
+        localStorage.setItem('perangkat_ajar_state_v1_3', JSON.stringify(pureData));
       } catch (e) {
         // Ignore if localStorage quota exceeded, IndexedDB has hundreds of MBs!
       }
