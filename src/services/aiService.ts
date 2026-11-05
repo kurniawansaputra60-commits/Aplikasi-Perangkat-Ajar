@@ -4,6 +4,7 @@ export interface AiGenerateRequest {
   systemInstruction?: string;
   context?: Record<string, any>;
   isJsonMode?: boolean;
+  responseSchema?: any;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -23,7 +24,7 @@ function cleanErrorMessage(rawMsg: string): string {
         return 'Batas kuota panggilan AI tercapai (Error 429). Mohon tunggu beberapa saat sebelum mencoba kembali.';
       }
       if (code === 400 || code === 403) {
-        return 'Kunci API Gemini tidak valid atau izin ditolak. Silakan periksa kunci Anda di Settings > Secrets.';
+        return 'Kunci API Gemini tidak valid atau izin ditolak. Silakan periksa kunci Anda di Pengaturan Aplikasi (BYOK).';
       }
       if (message) return message;
     }
@@ -58,6 +59,7 @@ export async function requestAiGeneration(params: AiGenerateRequest): Promise<st
           prompt: params.prompt,
           type: params.type,
           isJsonMode: Boolean(params.isJsonMode),
+          responseSchema: params.responseSchema || undefined,
           systemInstruction: params.systemInstruction || undefined,
           apiKey: userApiKey || undefined,
         }),

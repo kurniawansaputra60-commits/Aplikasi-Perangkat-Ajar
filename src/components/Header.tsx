@@ -7,8 +7,13 @@ import {
   Scale,
   Sparkles,
   ChevronDown,
+  Settings,
+  User,
+  Crown,
+  Key,
 } from 'lucide-react';
 import { TeachingPackage } from '../types';
+import { getCurrentUserAccount, getGeminiApiKey } from '../services/supabaseClient';
 
 interface HeaderProps {
   packages: TeachingPackage[];
@@ -19,6 +24,9 @@ interface HeaderProps {
   onOpenProgressModal: () => void;
   onOpenTutorialModal: () => void;
   onOpenRegulationsModal: () => void;
+  onOpenSettingsModal: () => void;
+  onOpenAuthModal: () => void;
+  onOpenPaymentModal: () => void;
   lastSavedAt: string;
 }
 
@@ -31,7 +39,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProgressModal,
   onOpenTutorialModal,
   onOpenRegulationsModal,
+  onOpenSettingsModal,
+  onOpenAuthModal,
+  onOpenPaymentModal,
 }) => {
+  const user = getCurrentUserAccount();
+  const hasByok = Boolean(getGeminiApiKey());
   const activePackage = packages.find((p) => p.id === activePackageId) || packages[0];
 
   return (
@@ -82,11 +95,43 @@ export const Header: React.FC<HeaderProps> = ({
             <ChevronDown className="w-4 h-4 text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
+          {/* BYOK Settings Button */}
+          <button
+            onClick={onOpenSettingsModal}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-slate-900 shadow-sm transition active:translate-y-0.5 ${
+              hasByok
+                ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-800'
+                : 'bg-white hover:bg-slate-100 text-slate-800'
+            }`}
+            title="Pengaturan Kunci API Gemini (BYOK Guru) & Supabase Cloud"
+          >
+            <Key className="w-3.5 h-3.5 text-amber-600" />
+            <span>{hasByok ? '🔑 Key Guru Aktif' : 'Atur Key AI (BYOK)'}</span>
+          </button>
+
+          {/* User Account / Auth Button */}
+          <button
+            onClick={onOpenAuthModal}
+            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-slate-900 shadow-sm transition active:translate-y-0.5"
+          >
+            <User className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{user ? user.email.split('@')[0] : 'Masuk / Daftar'}</span>
+          </button>
+
+          {/* Pro License Payment Button */}
+          <button
+            onClick={onOpenPaymentModal}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-black px-3 py-1.5 rounded-lg border-2 border-slate-900 shadow-sm transition active:translate-y-0.5"
+          >
+            <Crown className="w-3.5 h-3.5 text-slate-950" />
+            <span>{user?.isProUser ? '⭐ Lisensi Pro' : 'Aktivasi Pro'}</span>
+          </button>
+
           {/* Status Indicator */}
           <button
             onClick={onOpenFileModal}
             className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-slate-900 shadow-sm transition active:translate-y-0.5"
-            title="Data tersimpan di memori browser. Klik untuk unduh berkas .json"
+            title="Data tersimpan di memori browser & cloud. Klik untuk unduh berkas .json"
           >
             <FileCheck2 className="w-4 h-4" />
             <span>File .json Tersimpan</span>

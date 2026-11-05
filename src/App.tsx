@@ -18,6 +18,9 @@ import { ProgressMatrixModal } from './components/modals/ProgressMatrixModal';
 import { TutorialModal } from './components/modals/TutorialModal';
 import { RegulationsModal } from './components/modals/RegulationsModal';
 import { PackageModal } from './components/modals/PackageModal';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { AuthModal } from './components/modals/AuthModal';
+import { PaymentModal } from './components/modals/PaymentModal';
 
 // Step Views
 import { Step1Profile } from './components/steps/Step1Profile';
@@ -48,6 +51,9 @@ export default function App() {
   const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
   const [isRegulationsModalOpen, setIsRegulationsModalOpen] = useState(false);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   const handleSelectStep = (stepNumber: number) => {
     store.setCurrentStep(stepNumber);
@@ -99,6 +105,9 @@ export default function App() {
         onOpenProgressModal={() => setIsProgressModalOpen(true)}
         onOpenTutorialModal={() => setIsTutorialModalOpen(true)}
         onOpenRegulationsModal={() => setIsRegulationsModalOpen(true)}
+        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenPaymentModal={() => setIsPaymentModalOpen(true)}
         lastSavedAt={store.lastSavedAt}
       />
 
@@ -284,6 +293,23 @@ export default function App() {
         onAddPackage={(pkg) => store.addPackage(pkg)}
         onClonePackage={(sourceId, name) => store.clonePackage(sourceId, name)}
         onDeletePackage={(id) => store.deletePackage(id)}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {}}
+      />
+
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onSuccess={() => {}}
       />
     </div>
   );

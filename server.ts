@@ -86,7 +86,7 @@ function formatGeminiError(rawMsg: string): string {
 
 // AI Generation Endpoint with automatic retry & model failover
 app.post('/api/ai/generate', async (req, res) => {
-  const { prompt, systemInstruction, apiKey, isJsonMode } = req.body;
+  const { prompt, systemInstruction, apiKey, isJsonMode, responseSchema } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
@@ -96,7 +96,7 @@ app.post('/api/ai/generate', async (req, res) => {
 
   if (!ai) {
     return res.status(401).json({
-      error: 'API Key Gemini belum dikonfigurasi di Settings > Secrets atau pada server.',
+      error: 'API Key Gemini belum dikonfigurasi di Pengaturan Aplikasi (BYOK) atau pada server.',
     });
   }
 
@@ -112,15 +112,21 @@ app.post('/api/ai/generate', async (req, res) => {
         await sleep(1200 * attempt);
       }
 
+      const generateConfig: any = {
+        systemInstruction:
+          systemInstruction ||
+          'Anda adalah asisten pakar kurikulum dan perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) Sekolah Dasar (SD) di Indonesia. Rancanglah isi pembelajaran yang berkesadaran, bermakna, dan menggembirakan sesuai regulasi terbaru Permendikdasmen No. 10/2025, No. 12/2025, No. 13/2025, dan Kepka BSKAP 046/H/KR/2025.',
+        responseMimeType: isJsonMode || responseSchema ? 'application/json' : 'text/plain',
+      };
+
+      if (responseSchema) {
+        generateConfig.responseSchema = responseSchema;
+      }
+
       const response = await ai.models.generateContent({
         model: currentModel,
         contents: prompt,
-        config: {
-          systemInstruction:
-            systemInstruction ||
-            'Anda adalah asisten pakar kurikulum dan perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) Sekolah Dasar (SD) di Indonesia. Rancanglah isi pembelajaran yang berkesadaran, bermakna, dan menggembirakan sesuai regulasi terbaru Permendikdasmen No. 10/2025, No. 12/2025, No. 13/2025, dan Kepka BSKAP 046/H/KR/2025.',
-          responseMimeType: isJsonMode ? 'application/json' : 'text/plain',
-        },
+        config: generateConfig,
       });
 
       const text = response.text ?? '';

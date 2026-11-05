@@ -19,6 +19,7 @@ import {
   RegulationReference,
 } from '../types';
 import { defaultState } from '../data/defaultData';
+import { syncPackageToSupabase, fetchPackageFromSupabase } from '../services/supabaseClient';
 
 // Configure IndexedDB with localforage
 localforage.config({
@@ -35,7 +36,7 @@ export interface AppStore extends AppState {
   initializeStore: () => Promise<void>;
   setCurrentStep: (step: number) => void;
   setStepStatus: (step: number, status: StepStatus) => void;
-  setActivePackage: (pkgId: string) => void;
+  setActivePackage: (pkgId: string) => Promise<void>;
   addPackage: (pkg: TeachingPackage) => void;
   clonePackage: (sourcePkgId: string, newName: string) => void;
   deletePackage: (pkgId: string) => void;
@@ -82,23 +83,24 @@ export function extractPureAppState(state: any): AppState {
   };
 }
 
-// Debounce helper for saving to IndexedDB
+// Debounce helper for saving to IndexedDB & Supabase Cloud
 let saveTimeout: any = null;
 const debouncedSaveToIndexedDb = (stateSnapshot: any) => {
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     try {
-      // Destrukturisasi dan ambil HANYA properti data murni (tanpa method/fungsi aksi Zustand)
-      // untuk mencegah error DataCloneError pada IndexedDB
       const pureData = extractPureAppState(stateSnapshot);
 
       await localforage.setItem('appState', pureData);
-      // Backup to localStorage as secondary fallback
       try {
         localStorage.setItem('perangkat_ajar_state_v1_3', JSON.stringify(pureData));
-      } catch (e) {
-        // Ignore if localStorage quota exceeded, IndexedDB has hundreds of MBs!
-      }
+      } catch (e) {}
+
+      // Background cloud sync to Supabase
+      syncPackageToSupabase(pureData).catch((err) => {
+        console.warn('Supabase background sync notice:', err);
+      });
+
       useAppStore.setState({ saveStatus: 'saved' });
     } catch (err) {
       console.error('Failed to save state to IndexedDB:', err);
@@ -147,8 +149,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     debouncedSaveToIndexedDb(get());
   },
 
-  setActivePackage: (pkgId) => {
-    set({ activePackageId: pkgId });
+  setActivePackage: async (pkgId) => {
+    set({ activePackageId: pkgId, saveStatus: 'saving' });
+    try {
+      // Lazy loading: Fetch full package state from Supabase Cloud / Cache when teacher switches package
+      const cloudData = await fetchPackageFromSupabase(pkgId);
+      if (cloudData && typeof cloudData === 'object') {
+        set({ ...cloudData, activePackageId: pkgId, saveStatus: 'saved' });
+        return;
+      }
+    } catch (e) {
+      console.warn('Lazy fetch notice for package', pkgId, e);
+    }
+    set({ saveStatus: 'saved' });
     debouncedSaveToIndexedDb(get());
   },
 
