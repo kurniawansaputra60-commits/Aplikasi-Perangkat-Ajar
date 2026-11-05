@@ -1,7 +1,7 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
@@ -161,26 +161,38 @@ app.post('/api/ai/generate', async (req, res) => {
   });
 });
 
+// Health check endpoint for serverless and monitoring
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Tools Perangkat Ajar server is healthy',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 async function startServer() {
-  const isVercel = Boolean(process.env.VERCEL);
+  const isVercel = Boolean(process.env.VERCEL || process.env.NOW_REGION);
   if (isVercel) {
-    // Di arsitektur serverless Vercel, Vercel mengelola HTTP routing dan static build otomatis
-    // Jangan jalankan app.listen() agar tidak memblokir fungsi serverless
+    // Pada arsitektur serverless Vercel, Vercel menangani routing HTTP dan CDN file statis secara otomatis.
+    // Jangan jalankan app.listen() dan jangan sentuh folder 'dist' lokal agar tidak memicu crash.
     return;
   }
 
   const isProd = process.env.NODE_ENV === 'production';
+  const distPath = path.resolve(__dirname, 'dist');
+  const indexHtmlPath = path.join(distPath, 'index.html');
 
   if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+  } else if (fs.existsSync(indexHtmlPath)) {
+    app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(indexHtmlPath);
     });
   }
 
@@ -189,6 +201,8 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+});
 
 export default app;
