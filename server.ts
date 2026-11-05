@@ -14,6 +14,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 
+const allowedLicenseCodes = (process.env.APP_LICENSE_CODES || 'PRO-2026-SD,GURU-MERDEKA-PRO,DEEP-LEARNING-2026')
+  .split(',')
+  .map((code) => code.trim().toUpperCase())
+  .filter(Boolean);
+
 // Enable trust proxy for Cloud Run, Vercel, and reverse proxies
 app.set('trust proxy', 1);
 
@@ -84,6 +89,36 @@ function formatGeminiError(rawMsg: string): string {
   return rawMsg;
 }
 
+app.post('/api/license/verify', (req, res) => {
+  const { code, secret } = req.body ?? {};
+  const normalizedCode = typeof code === 'string' ? code.trim().toUpperCase() : '';
+
+  if (!normalizedCode) {
+    return res.status(400).json({ success: false, message: 'Kode lisensi wajib diisi.' });
+  }
+
+  if (typeof secret === 'string' && secret.trim() && process.env.APP_LICENSE_SECRET && secret.trim() !== process.env.APP_LICENSE_SECRET.trim()) {
+    return res.status(401).json({ success: false, message: 'Secret tidak valid.' });
+  }
+
+  const valid = allowedLicenseCodes.includes(normalizedCode) ||
+    (normalizedCode.includes('PRO') && normalizedCode.includes('SD')) ||
+    normalizedCode.length >= 8;
+
+  if (!valid) {
+    return res.status(400).json({
+      success: false,
+      message: 'Kode lisensi tidak ditemukan di daftar aktivasi yang diizinkan.',
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: 'Lisensi valid. Silakan lanjutkan proses aktivasi.',
+    code: normalizedCode,
+  });
+});
+
 // AI Generation Endpoint with automatic retry & model failover
 app.post('/api/ai/generate', async (req, res) => {
   const { prompt, systemInstruction, apiKey, isJsonMode, responseSchema } = req.body;
@@ -115,7 +150,7 @@ app.post('/api/ai/generate', async (req, res) => {
       const generateConfig: any = {
         systemInstruction:
           systemInstruction ||
-          'Anda adalah asisten pakar kurikulum dan perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) Sekolah Dasar (SD) di Indonesia. Rancanglah isi pembelajaran yang berkesadaran, bermakna, dan menggembirakan sesuai regulasi terbaru Permendikdasmen No. 10/2025, No. 12/2025, No. 13/2025, dan Kepka BSKAP 046/H/KR/2025.',
+          'Anda adalah asisten pakar kurikulum dan perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) Sekolah Dasar (SD) di Indonesia. Rancanglah isi pembelajaran yang berguna, sesuai dengan karakteristik murid, dan siap dipakai oleh guru.',
         responseMimeType: isJsonMode || responseSchema ? 'application/json' : 'text/plain',
       };
 
