@@ -172,7 +172,67 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   updateAtp: (atp) => {
-    set({ atp });
+    const currentPromes = get().promes || [];
+
+    // 1. Sinkronisasi otomatis Program Tahunan (Prota) dari ATP
+    const updatedProta: ProtaItem[] = atp.map((item, idx) => {
+      const defaultSemester: '1' | '2' = item.semester
+        ? item.semester
+        : idx < Math.ceil(atp.length / 2)
+        ? '1'
+        : '2';
+      return {
+        semester: defaultSemester,
+        tpCode: item.code,
+        material: item.scopeContent,
+        allocatedJp: Number(item.allocatedJp) || 10,
+      };
+    });
+
+    // 2. Sinkronisasi otomatis Program Semester (Promes) Matriks Mingguan
+    const teachingWeeks = [
+      'm0_w3', 'm0_w4',
+      'm1_w1', 'm1_w2', 'm1_w3', 'm1_w4',
+      'm2_w1', 'm2_w2', 'm2_w4',
+      'm3_w1', 'm3_w2', 'm3_w3', 'm3_w4', 'm3_w5',
+      'm4_w1', 'm4_w2', 'm4_w3', 'm4_w4',
+    ];
+
+    let currentWeekOffset = 0;
+    const updatedPromes: PromesRow[] = atp.map((item) => {
+      const existing = currentPromes.find((p) => p.tpCode === item.code);
+      const totalJp = Number(item.allocatedJp) || 10;
+
+      // Jika baris promes sudah ada dengan data minggu terisi, pertahankan alokasi mingguan tersebut
+      if (existing && existing.weeks && Object.keys(existing.weeks).length > 0) {
+        return {
+          tpCode: item.code,
+          material: item.scopeContent,
+          totalJp,
+          weeks: existing.weeks,
+        };
+      }
+
+      // Distribusi otomatis seimbang per pekan tatap muka (5 JP per pertemuan)
+      const weeksObj: { [key: string]: number } = {};
+      let remainingJp = totalJp;
+      while (remainingJp > 0 && currentWeekOffset < teachingWeeks.length) {
+        const weekKey = teachingWeeks[currentWeekOffset];
+        const jpForWeek = Math.min(5, remainingJp);
+        weeksObj[weekKey] = jpForWeek;
+        remainingJp -= jpForWeek;
+        currentWeekOffset++;
+      }
+
+      return {
+        tpCode: item.code,
+        material: item.scopeContent,
+        totalJp,
+        weeks: weeksObj,
+      };
+    });
+
+    set({ atp, prota: updatedProta, promes: updatedPromes });
     debouncedSaveToIndexedDb(get());
   },
 

@@ -101,7 +101,7 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 
   // Model list to attempt in order if experiencing temporary high demand (503)
-  const candidateModels = ['gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
+  const candidateModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (let attempt = 0; attempt < candidateModels.length; attempt++) {

@@ -1,6 +1,7 @@
 export interface AiGenerateRequest {
   type: string;
   prompt: string;
+  systemInstruction?: string;
   context?: Record<string, any>;
   isJsonMode?: boolean;
 }
@@ -55,10 +56,10 @@ export async function requestAiGeneration(params: AiGenerateRequest): Promise<st
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: params.prompt,
+          type: params.type,
+          isJsonMode: Boolean(params.isJsonMode),
+          systemInstruction: params.systemInstruction || undefined,
           apiKey: userApiKey || undefined,
-          isJsonMode: params.isJsonMode,
-          systemInstruction:
-            'Anda adalah asisten pakar kurikulum dan perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) Sekolah Dasar (SD) di Indonesia. Rancanglah isi pembelajaran yang berkesadaran, bermakna, dan menggembirakan sesuai regulasi terbaru Permendikdasmen No. 10/2025, No. 12/2025, No. 13/2025, dan Kepka BSKAP 046/H/KR/2025.',
         }),
       });
 

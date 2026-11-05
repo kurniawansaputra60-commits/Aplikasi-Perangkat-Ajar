@@ -1,0 +1,60 @@
+﻿Rencana Perbaikan & Struktur Prompt Google AI Studio
+1. Analisis Kekurangan Kritis Aplikasi (v1.3)
+Komponen / Berkas
+	Kekurangan Teknis
+	Dampak Sistemik
+	src/services/aiService.ts
+	Fungsi requestAiGeneration mengirimkan properti type ke server, tetapi tidak mengirimkan payload parameter dinamis penting (seperti prompt spesifik atau konfigurasi isJsonMode) ke endpoint backend.
+	Tombol AI di Langkah 5 (ATP), Langkah 9 (Modul Ajar), Langkah 10 (LKPD), Langkah 11 (Asesmen), dan Langkah 12 (Kisi-kisi) tidak memicu teks kustom, melainkan hanya menggunakan instruksi statis default.
+	server.ts (Backend)
+	Menggunakan paket @google/genai versi ^2.4.0 tetapi menginisialisasi dengan sintaks lama new GoogleGenAI(). Selain itu, daftar failover menggunakan gemini-3.8-flash (bukan model resmi komersial 2026 yang valid seperti gemini-2.5-flash atau gemini-2.0-flash).
+	Inisialisasi SDK akan melempar eror saat server dinyalakan (runtime crash) karena ketidakcocokan metode pemanggilan fungsi pada versi SDK Google Gen AI terbaru.
+	src/components/steps/Step12KisiDanSoal.tsx
+	Fungsi handleExecuteClick1, Click2, dan Click3 memanggil requestAiGeneration dengan parameter isJsonMode: true, namun backend server.ts tidak meneruskan flag tersebut ke struktur konfigurasi objek ai.models.generateContent.
+	Respons dari Gemini akan dikembalikan sebagai teks Markdown biasa (dilengkapi pagar atau kode teks n```json), menyebabkan fungsi parser parseAiJson gagal membaca data dan aplikasi mengalami blank screen / hang pada komponen tabel kisi-kisi.
+	Sinkronisasi Data Antar-Langkah
+	Perubahan data esensial di Langkah 1 (Profil Sekolah/Guru) dan Langkah 5 (Alur Tujuan Pembelajaran) tidak otomatis memicu pembaruan state rekapitulasi pada komponen Langkah 6 (Prota) dan Langkah 7 (Promes) kecuali tombol "Sinkronkan Ulang" ditekan manual.
+	Risiko terjadinya inkonsistensi data (data ganda yang tidak selaras) di mana dokumen Word .doc yang diekspor menampilkan tujuan pembelajaran atau nama guru yang berbeda antar-bab.
+	
+
+	
+
+	
+
+	2. Solusi & Langkah Perbaikan Kode
+Untuk mengatasi masalah di atas, berikut adalah perubahan logika yang harus diterapkan pada kode Anda:
+A. Perbaikan Endpoint AI di Backend (server.ts)
+* Pembaruan Model: Ganti kandidat model array menjadi ['gemini-2.5-flash', 'gemini-2.0-flash'].
+* Penerusan Struktur JSON: Pastikan properti responseMimeType: 'application/json' dikonfigurasi secara dinamis di dalam backend dengan membaca body request req.body.isJsonMode.
+B. Sinkronisasi Otomatis State di Frontend (src/store/useAppStore.ts)
+* Modifikasi fungsi updateAtp dan updateProfile agar secara otomatis memperbarui struktur array prota dan promes yang menjadi dependensinya secara real-time, sehingga menghilangkan keharusan guru menekan tombol sinkronisasi manual.
+C. Pembenahan Payload Pengiriman (src/services/aiService.ts)
+* Pastikan fungsi fetch('/api/ai/generate') menyertakan seluruh objek data secara utuh di dalam body: JSON.stringify({...}), termasuk parameter prompt, systemInstruction, dan isJsonMode.
+3. Draf Perintah (Prompt) untuk Google AI Studio
+Anda dapat menyalin teks perintah di bawah ini secara bergantian ke chat Google AI Studio untuk melakukan perbaikan otomatis pada berkas aplikasi Anda:
+Perintah 1: Memperbaiki Backend Server (server.ts)
+
+
+Perbaiki berkas server.ts saya agar mendukung pemanggilan SDK @google/genai secara valid. 
+Sesuaikan dengan ketentuan berikut:
+1. Baca parameter 'isJsonMode' dari req.body. Jika true, atur config.responseMimeType = "application/json" pada pemanggilan ai.models.generateContent.
+2. Pastikan prompt kustom dari frontend (req.body.prompt) diteruskan ke dalam parameter 'contents' milik model Gemini, bukan diabaikan.
+3. Perbarui candidateModels menggunakan model resmi yang valid untuk kecepatan tinggi, yaitu ['gemini-2.5-flash', 'gemini-2.0-flash'].
+4. Pertahankan fitur rate limiter dan penanganan eror (friendly error) yang sudah ada.
+Berikan kode penuh server.ts yang sudah diperbaiki tanpa memotong fungsionalitas Express lainnya.
+
+Perintah 2: Memperbaiki Pengiriman Data Frontend (src/services/aiService.ts)
+
+
+Tinjau berkas src/services/aiService.ts milik saya. Terdapat bug di mana fungsi requestAiGeneration menerima params objek (seperti prompt dan isJsonMode), tetapi saat memanggil fetch('/api/ai/generate'), data params.prompt dan params.isJsonMode tersebut belum dimasukkan ke dalam JSON.stringify body request.
+Tolong perbaiki kode requestAiGeneration agar meneruskan parameter:
+- prompt: params.prompt
+- isJsonMode: params.isJsonMode
+- systemInstruction kustom (jika disediakan)
+ke backend secara utuh. Pertahankan penanganan eror fetch failed dan status HTTP check. Berikan kode lengkap hasil perbaikannya.
+
+Perintah 3: Otomatisasi Sinkronisasi State (src/store/useAppStore.ts)
+
+
+Perbaiki fungsi updateAtp di dalam src/store/useAppStore.ts agar setiap kali array 'atp' diperbarui oleh pengguna atau AI, sistem otomatis memperbarui state 'prota' dan 'promes' yang terkait tanpa menunggu pengguna mengklik tombol sinkronisasi manual di Langkah 6 atau Langkah 7. 
+Pastikan pemetaan kode TP, lingkup materi, dan alokasi JP terdistribusi secara seimbang ke semester berjalan. Berikan kode fungsi updateAtp dan integrasinya dalam skema Zustand store tersebut secara utuh.
