@@ -2,5 +2,7 @@
   "name": "Tools Perangkat Ajar — Sekolah Dasar v1.3",
   "description": "Aplikasi penyusun perangkat ajar Kurikulum Merdeka & Pembelajaran Mendalam (Deep Learning) 13 langkah runtut dari profil sekolah hingga analisis butir soal, ekspor Word (.doc) dan backup JSON.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
