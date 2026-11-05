@@ -2,7 +2,7 @@ import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
 // Default / fallback demo Supabase credentials if user hasn't supplied custom project keys
 const DEFAULT_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://demo-perangkat-ajar.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbW8iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwMDA0MDAwMCwiZXhwIjoyMDE1NjE2MDAwfQ.demo_key_placeholder';
+const DEFAULT_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbW8iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwMDA0MDAwMCw';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -78,7 +78,55 @@ export function setCurrentUserAccount(account: AppUserAccount | null): void {
   }
 }
 
-export function activateProLicense(licenseCode: string): { success: boolean; message: string } {
+export function getValidLicenseCodes(): string[] {
+  const codes = (import.meta.env.VITE_LICENSE_CODES || 'PRO-2026-SD,GURU-MERDEKA-PRO,DEEP-LEARNING-2026')
+    .split(',')
+    .map((code) => code.trim().toUpperCase())
+    .filter(Boolean);
+
+  return Array.from(new Set(codes));
+}
+
+export async function verifyLicenseCodeWithServer(code: string, secret?: string): Promise<{ success: boolean; message: string; code?: string }> {
+  const cleanCode = String(code || '').trim();
+
+  if (!cleanCode) {
+    return { success: false, message: 'Kode lisensi wajib diisi.' };
+  }
+
+  try {
+    const res = await fetch('/api/license/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: cleanCode,
+        secret: secret || undefined,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data?.message || 'Lisensi tidak valid untuk akun ini.',
+      };
+    }
+
+    return {
+      success: true,
+      message: data?.message || 'Lisensi valid.',
+      code: data?.code || cleanCode,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Tidak dapat memvalidasi lisensi saat ini. Silakan coba beberapa saat lagi.',
+    };
+  }
+}
+
+export async function activateProLicense(licenseCode: string): Promise<{ success: boolean; message: string }> {
   const user = getCurrentUserAccount();
   const cleanCode = licenseCode.trim().toUpperCase();
 
@@ -86,15 +134,9 @@ export function activateProLicense(licenseCode: string): { success: boolean; mes
     return { success: false, message: 'Kode aktivasi tidak valid. Periksa kembali format kode lisensi.' };
   }
 
-  // Valid license formats: PRO-2026-SD, GURU-MERDEKA-PRO, DEEP-LEARNING-2026, or any 8+ character code
-  const isCodeValid =
-    cleanCode.includes('PRO') ||
-    cleanCode.includes('GURU') ||
-    cleanCode.includes('SD') ||
-    cleanCode.length >= 8;
-
-  if (!isCodeValid) {
-    return { success: false, message: 'Kode lisensi tidak ditemukan di sistem pembayaran.' };
+  const serverResult = await verifyLicenseCodeWithServer(cleanCode);
+  if (!serverResult.success) {
+    return { success: false, message: serverResult.message };
   }
 
   const updatedAccount: AppUserAccount = {
@@ -111,7 +153,7 @@ export function activateProLicense(licenseCode: string): { success: boolean; mes
   };
 
   setCurrentUserAccount(updatedAccount);
-  return { success: true, message: 'Selamat! Akun Guru Pro berhasil diaktivasi secara permanen.' };
+  return { success: true, message: 'Selamat! Akun Guru Pro berhasil diaktivasi secara aman.' };
 }
 
 // ==================== Supabase Cloud Sync Helpers ====================
