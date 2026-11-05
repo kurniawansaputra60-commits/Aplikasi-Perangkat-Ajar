@@ -79,7 +79,9 @@ async function generateAi(req: any, res: any) {
   if (!key || key === 'MY_GEMINI_API_KEY') return res.status(401).json({ error: 'API Key Gemini belum dikonfigurasi.' });
 
   const ai = new GoogleGenAI({ apiKey: key });
-  const models = ['gemini-2.5-flash', 'gemini-flash-latest'];
+  // New users should use Gemini 3.8 Flash; Gemini 2.5 Flash can return 404
+  // for projects that do not have access to legacy model IDs.
+  const models = ['gemini-3.8-flash', 'gemini-flash-latest'];
   let lastError: any;
   for (const model of models) {
     try {
@@ -97,11 +99,13 @@ async function generateAi(req: any, res: any) {
     } catch (error: any) {
       lastError = error;
       const message = String(error?.message || error);
+      // A model-not-found/unsupported error is not transient; move to the fallback model.
+      if (/404|NOT_FOUND|not available|not supported/i.test(message)) continue;
       if (!/503|UNAVAILABLE|high demand|fetch failed|timeout|RESOURCE_EXHAUSTED/i.test(message)) break;
     }
   }
   console.error('Gemini request failed:', String(lastError?.message || lastError || 'unknown error'));
-  return res.status(502).json({ error: 'Gagal memproses permintaan AI. Silakan coba lagi nanti.' });
+  return res.status(502).json({ error: 'Gagal memproses permintaan AI. Periksa model/API key atau coba lagi nanti.' });
 }
 
 export default async function handler(req: any, res: any) {
