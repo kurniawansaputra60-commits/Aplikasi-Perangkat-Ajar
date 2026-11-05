@@ -1,0 +1,248 @@
+import { create } from 'zustand';
+import localforage from 'localforage';
+import {
+  AppState,
+  StepStatus,
+  TeachingPackage,
+  SchoolProfile,
+  AcademicCalendar,
+  CapaianPembelajaranData,
+  AtpItem,
+  ProtaItem,
+  PromesRow,
+  KktpData,
+  DeepLearningModule,
+  LkpdData,
+  AssessmentPlanItem,
+  Step12Data,
+  QuestionAnalysisItem,
+  RegulationReference,
+} from '../types';
+import { defaultState } from '../data/defaultData';
+
+// Configure IndexedDB with localforage
+localforage.config({
+  name: 'AplikasiPerangkatAjar',
+  storeName: 'app_data',
+  description: 'Penyimpanan lokal perangkat ajar kapasitas besar (IndexedDB)',
+});
+
+export interface AppStore extends AppState {
+  isInitialized: boolean;
+  saveStatus: 'saved' | 'saving' | 'idle';
+
+  // Actions
+  initializeStore: () => Promise<void>;
+  setCurrentStep: (step: number) => void;
+  setStepStatus: (step: number, status: StepStatus) => void;
+  setActivePackage: (pkgId: string) => void;
+  addPackage: (pkg: TeachingPackage) => void;
+  clonePackage: (sourcePkgId: string, newName: string) => void;
+  deletePackage: (pkgId: string) => void;
+  updateProfile: (profile: SchoolProfile) => void;
+  updateCalendar: (calendar: AcademicCalendar) => void;
+  updateCp: (cp: CapaianPembelajaranData) => void;
+  updateAtp: (atp: AtpItem[]) => void;
+  updateProta: (prota: ProtaItem[]) => void;
+  updatePromes: (promes: PromesRow[]) => void;
+  updateKktp: (kktp: KktpData) => void;
+  updateModule: (tpCode: string, mod: DeepLearningModule) => void;
+  updateLkpd: (tpCode: string, lkpd: LkpdData) => void;
+  updateAssessmentPlans: (plans: AssessmentPlanItem[]) => void;
+  updateStep12: (step12: Step12Data) => void;
+  updateAnalysis: (analysis: QuestionAnalysisItem[]) => void;
+  toggleRegulation: (id: string) => void;
+  addRegulation: (reg: RegulationReference) => void;
+  loadState: (newState: AppState) => void;
+  resetToDefault: () => void;
+}
+
+// Debounce helper for saving to IndexedDB
+let saveTimeout: any = null;
+const debouncedSaveToIndexedDb = (stateToSave: AppState) => {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    try {
+      await localforage.setItem('appState', stateToSave);
+      // Backup to localStorage as secondary fallback
+      try {
+        localStorage.setItem('perangkat_ajar_state_v1_3', JSON.stringify(stateToSave));
+      } catch (e) {
+        // Ignore if localStorage quota exceeded, IndexedDB has hundreds of MBs!
+      }
+      useAppStore.setState({ saveStatus: 'saved' });
+    } catch (err) {
+      console.error('Failed to save state to IndexedDB:', err);
+    }
+  }, 400);
+};
+
+export const useAppStore = create<AppStore>((set, get) => ({
+  ...defaultState,
+  isInitialized: false,
+  saveStatus: 'saved',
+
+  initializeStore: async () => {
+    try {
+      const stored = await localforage.getItem<AppState>('appState');
+      if (stored && stored.profile && stored.packages) {
+        set({ ...stored, isInitialized: true, saveStatus: 'saved' });
+        return;
+      }
+
+      // Check localStorage fallback
+      const localFallback = localStorage.getItem('perangkat_ajar_state_v1_3');
+      if (localFallback) {
+        const parsed = JSON.parse(localFallback);
+        if (parsed.profile && parsed.packages) {
+          set({ ...parsed, isInitialized: true, saveStatus: 'saved' });
+          await localforage.setItem('appState', parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading from IndexedDB, using default state:', e);
+    }
+    set({ isInitialized: true, saveStatus: 'saved' });
+  },
+
+  setCurrentStep: (step) => {
+    set({ currentStep: step });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  setStepStatus: (step, status) => {
+    set((state) => ({
+      stepStatuses: { ...state.stepStatuses, [step]: status },
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  setActivePackage: (pkgId) => {
+    set({ activePackageId: pkgId });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  addPackage: (pkg) => {
+    set((state) => ({
+      packages: [...state.packages, pkg],
+      activePackageId: pkg.id,
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  clonePackage: (sourcePkgId, newName) => {
+    const src = get().packages.find((p) => p.id === sourcePkgId) || get().packages[0];
+    const cloned: TeachingPackage = {
+      ...src,
+      id: 'pkg-' + Date.now(),
+      name: newName,
+    };
+    set((state) => ({
+      packages: [...state.packages, cloned],
+      activePackageId: cloned.id,
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  deletePackage: (pkgId) => {
+    const { packages, activePackageId } = get();
+    if (packages.length <= 1) return;
+    const remaining = packages.filter((p) => p.id !== pkgId);
+    set({
+      packages: remaining,
+      activePackageId: activePackageId === pkgId ? remaining[0].id : activePackageId,
+    });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateProfile: (profile) => {
+    set({ profile });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateCalendar: (calendar) => {
+    set({ calendar });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateCp: (cp) => {
+    set({ cp });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateAtp: (atp) => {
+    set({ atp });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateProta: (prota) => {
+    set({ prota });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updatePromes: (promes) => {
+    set({ promes });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateKktp: (kktp) => {
+    set({ kktp });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateModule: (tpCode, mod) => {
+    set((state) => ({
+      modules: { ...state.modules, [tpCode]: mod },
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateLkpd: (tpCode, lkpd) => {
+    set((state) => ({
+      lkpd: { ...state.lkpd, [tpCode]: lkpd },
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateAssessmentPlans: (plans) => {
+    set({ assessmentPlans: plans });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateStep12: (step12) => {
+    set({ step12 });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  updateAnalysis: (analysis) => {
+    set({ analysis });
+    debouncedSaveToIndexedDb(get());
+  },
+
+  toggleRegulation: (id) => {
+    set((state) => ({
+      regulations: state.regulations.map((r) =>
+        r.id === id ? { ...r, isChecked: !r.isChecked } : r
+      ),
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  addRegulation: (reg) => {
+    set((state) => ({
+      regulations: [...state.regulations, reg],
+    }));
+    debouncedSaveToIndexedDb(get());
+  },
+
+  loadState: (newState) => {
+    set({ ...newState, saveStatus: 'saved' });
+    debouncedSaveToIndexedDb(newState);
+  },
+
+  resetToDefault: () => {
+    set({ ...defaultState, saveStatus: 'saved' });
+    debouncedSaveToIndexedDb(defaultState);
+  },
+}));
