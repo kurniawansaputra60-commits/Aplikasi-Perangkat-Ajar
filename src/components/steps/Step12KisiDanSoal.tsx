@@ -19,6 +19,42 @@ interface Step12Props {
   appState: AppState;
 }
 
+const normalizeQuestionArray = (raw: any): any[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item) => item && typeof item === 'object');
+};
+
+const validateGeneratedQuestions = (questions: any[], expectedPg: number, expectedEssay: number) => {
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return { valid: false, message: 'AI tidak mengembalikan daftar soal sama sekali.' };
+  }
+
+  const pgCount = questions.filter((q) => q?.type === 'PG').length;
+  const essayCount = questions.filter((q) => q?.type === 'Uraian' || q?.type === 'Essay').length;
+
+  if (pgCount !== expectedPg || essayCount !== expectedEssay) {
+    return {
+      valid: false,
+      message: `AI menghasilkan ${pgCount} PG dan ${essayCount} uraian. Dipersyaratkan ${expectedPg} PG dan ${expectedEssay} uraian.`,
+    };
+  }
+
+  const invalidQuestion = questions.find((q) => {
+    if (!q || typeof q !== 'object') return true;
+    if (!q.id || !q.questionText || !q.tpCode || !q.materi || !q.indicator) return true;
+    if (q.type === 'PG') {
+      return !Array.isArray(q.options) || q.options.length < 2 || !q.correctAnswer || !q.explanation;
+    }
+    return !q.questionText;
+  });
+
+  if (invalidQuestion) {
+    return { valid: false, message: 'Struktur soal yang dihasilkan AI tidak lengkap atau tidak valid.' };
+  }
+
+  return { valid: true, message: 'OK' };
+};
+
 export const Step12KisiDanSoal: React.FC<Step12Props> = ({ data, onChange, appState }) => {
   const [loadingClick, setLoadingClick] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'matrix' | 'naskah' | 'kartu'>('matrix');
@@ -28,12 +64,10 @@ export const Step12KisiDanSoal: React.FC<Step12Props> = ({ data, onChange, appSt
   const activePkg =
     appState.packages.find((p) => p.id === appState.activePackageId) || appState.packages[0];
 
-  // Helper to update fields
   const updateField = <K extends keyof Step12Data>(field: K, val: Step12Data[K]) => {
     onChange({ ...data, [field]: val });
   };
 
-  // Helper to safely parse JSON from AI (stripping any accidental markdown code fences)
   const parseAiJson = <T,>(rawText: string, fallback: T): T => {
     try {
       const cleaned = rawText
@@ -57,7 +91,6 @@ export const Step12KisiDanSoal: React.FC<Step12Props> = ({ data, onChange, appSt
     }
   };
 
-  // Click 1: Buat Matriks Kisi-kisi
   const handleExecuteClick1 = async () => {
     setErrorMsg(null);
     setLoadingClick(1);
@@ -108,7 +141,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut (jangan tambahkan tek
     }
   };
 
-  // Click 2: Buat Naskah Soal & Kunci Jawaban
   const handleExecuteClick2 = async () => {
     setErrorMsg(null);
     setLoadingClick(2);
@@ -119,8 +151,10 @@ Buat naskah butir soal asesmen tertulis lengkap untuk:
 - Jumlah Soal Pilihan Ganda: ${data.countPg} butir (${data.optionsCount})
 - Jumlah Soal Uraian: ${data.countEssay} butir (Skor maksimal per uraian: ${data.maxScorePerEssay})
 - Berbasis Higher Order Thinking Skills (HOTS) kontekstual dan stimulus kasus nyata.
+- Pastikan hasil akhir berjumlah tepat ${data.countPg} soal PG dan ${data.countEssay} soal Uraian.
+- Setiap soal harus lengkap: id, type, tpCode, materi, indicator, cognitiveLevel, levelLabel, questionText, options, correctAnswer, explanation, scoreMax.
 
-Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
+Kembalikan HANYA format JSON ARRAY seperti contoh berikut:
 [
   {
     "id": 1,
@@ -140,8 +174,26 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
     "correctAnswer": "B",
     "explanation": "Penjelasan kunci jawaban...",
     "scoreMax": 1
+  },
+  {
+    "id": 11,
+    "type": "Uraian",
+    "tpCode": "TP 2",
+    "materi": "Nama materi",
+    "indicator": "Peserta didik dapat...",
+    "cognitiveLevel": "C4",
+    "levelLabel": "HOTS",
+    "questionText": "Teks soal uraian...",
+    "correctAnswer": "Contoh jawaban...",
+    "explanation": "Penjelasan...",
+    "scoreMax": 4
   }
-]`;
+]
+
+CATATAN PENTING:
+- Jumlah soal PG harus tepat ${data.countPg}.
+- Jumlah soal Uraian harus tepat ${data.countEssay}.
+- Jangan mengembalikan soal kurang atau lebih dari target.`;
 
       const response = await requestAiGeneration({
         type: 'step12_click2_soal',
@@ -154,10 +206,14 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
         context: { subject: activePkg.subject, grade: activePkg.grade, materi: data.assessmentName },
       });
 
-      const parsedQuestions = parseAiJson<any[]>(response, []);
-      if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-        updateField('questions', parsedQuestions);
+      const parsedQuestions = normalizeQuestionArray(parseAiJson<any[]>(response, []));
+      const validation = validateGeneratedQuestions(parsedQuestions, data.countPg, data.countEssay);
+
+      if (!validation.valid) {
+        throw new Error(validation.message);
       }
+
+      updateField('questions', parsedQuestions);
       updateField('click2Done', true);
       setActiveTab('naskah');
     } catch (err: any) {
@@ -167,7 +223,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
     }
   };
 
-  // Click 3: Buat Kartu Soal & Rubrik
   const handleExecuteClick3 = async () => {
     setErrorMsg(null);
     setLoadingClick(3);
@@ -223,7 +278,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
 
   return (
     <div className="space-y-4">
-      {/* Top Banner Box matching screenshot */}
       <div className="bg-white rounded-2xl border-2 border-slate-900 p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
@@ -255,9 +309,7 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
           Konfigurasi Paket Soal Tertulis
         </h3>
 
-        {/* 6 Grid Fields matching screenshot */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          {/* 1. NAMA ASESMEN */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               1. NAMA ASESMEN
@@ -271,7 +323,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             />
           </div>
 
-          {/* 2. JENIS ASESMEN */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               2. JENIS ASESMEN
@@ -290,7 +341,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          {/* 3. JUMLAH SOAL PILIHAN GANDA */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               3. JUMLAH SOAL PILIHAN GANDA
@@ -305,7 +355,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             />
           </div>
 
-          {/* 4. JUMLAH SOAL URAIAN */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               4. JUMLAH SOAL URAIAN
@@ -320,7 +369,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             />
           </div>
 
-          {/* 5. JUMLAH OPSI PG */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               5. JUMLAH OPSI PG
@@ -335,7 +383,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             </select>
           </div>
 
-          {/* 6. SKOR MAKSIMAL PER URAIAN */}
           <div>
             <label className="block text-[11px] font-black uppercase text-slate-700 mb-1">
               6. SKOR MAKSIMAL PER URAIAN
@@ -351,7 +398,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
           </div>
         </div>
 
-        {/* Mini Summary Matrix Row like screenshot */}
         <div className="overflow-x-auto rounded-xl border-2 border-slate-900 bg-slate-50 mb-5">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
@@ -385,39 +431,23 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
               ))}
               <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-300">
                 <td className="py-2 px-3">JUMLAH TOTAL</td>
-                <td className="py-2 px-2 text-center">
-                  {data.matrix.reduce((a, b) => a + b.levelEasy_C1C2, 0)}
-                </td>
-                <td className="py-2 px-2 text-center">
-                  {data.matrix.reduce((a, b) => a + b.levelMedium_C3, 0)}
-                </td>
-                <td className="py-2 px-2 text-center">
-                  {data.matrix.reduce((a, b) => a + b.levelHots_C4C6, 0)}
-                </td>
-                <td className="py-2 px-3 text-center text-emerald-700 font-black">
-                  {data.countPg} butir
-                </td>
-                <td className="py-2 px-3 text-center text-indigo-700 font-black">
-                  {data.countEssay} butir
-                </td>
-                <td className="py-2 px-3 text-center font-black text-slate-900">
-                  {data.countPg + data.countEssay * data.maxScorePerEssay}
-                </td>
+                <td className="py-2 px-2 text-center">{data.matrix.reduce((a, b) => a + b.levelEasy_C1C2, 0)}</td>
+                <td className="py-2 px-2 text-center">{data.matrix.reduce((a, b) => a + b.levelMedium_C3, 0)}</td>
+                <td className="py-2 px-2 text-center">{data.matrix.reduce((a, b) => a + b.levelHots_C4C6, 0)}</td>
+                <td className="py-2 px-3 text-center text-emerald-700 font-black">{data.countPg} butir</td>
+                <td className="py-2 px-3 text-center text-indigo-700 font-black">{data.countEssay} butir</td>
+                <td className="py-2 px-3 text-center font-black text-slate-900">{data.countPg + data.countEssay * data.maxScorePerEssay}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* The 3 Sequential Click Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Klik 1 */}
           <button
             onClick={handleExecuteClick1}
             disabled={loadingClick !== null}
             className={`p-3 rounded-xl border-2 border-slate-900 text-left transition flex items-center justify-between shadow-sm active:translate-y-0.5 ${
-              data.click1Done
-                ? 'bg-emerald-50 hover:bg-emerald-100'
-                : 'bg-white hover:bg-slate-50'
+              data.click1Done ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-slate-50'
             }`}
           >
             <div>
@@ -437,14 +467,11 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             )}
           </button>
 
-          {/* Klik 2 */}
           <button
             onClick={handleExecuteClick2}
             disabled={loadingClick !== null}
             className={`p-3 rounded-xl border-2 border-slate-900 text-left transition flex items-center justify-between shadow-sm active:translate-y-0.5 ${
-              data.click2Done
-                ? 'bg-emerald-50 hover:bg-emerald-100'
-                : 'bg-white hover:bg-slate-50'
+              data.click2Done ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-slate-50'
             }`}
           >
             <div>
@@ -464,14 +491,11 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
             )}
           </button>
 
-          {/* Klik 3 */}
           <button
             onClick={handleExecuteClick3}
             disabled={loadingClick !== null}
             className={`p-3 rounded-xl border-2 border-slate-900 text-left transition flex items-center justify-between shadow-sm active:translate-y-0.5 ${
-              data.click3Done
-                ? 'bg-emerald-50 hover:bg-emerald-100'
-                : 'bg-white hover:bg-slate-50'
+              data.click3Done ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-white hover:bg-slate-50'
             }`}
           >
             <div>
@@ -493,7 +517,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
         </div>
       </div>
 
-      {/* Tabs for Results */}
       <div className="bg-white rounded-2xl border-2 border-slate-900 overflow-hidden shadow-sm">
         <div className="flex border-b-2 border-slate-900 bg-slate-100">
           <button
@@ -522,7 +545,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
           </button>
         </div>
 
-        {/* Tab 1: Matriks Kisi-kisi */}
         {activeTab === 'matrix' && (
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -557,14 +579,10 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
                       <td className="py-2 px-3 font-medium text-slate-900">{row.materi}</td>
                       <td className="py-2 px-2 text-center">{row.levelEasy_C1C2}</td>
                       <td className="py-2 px-2 text-center">{row.levelMedium_C3}</td>
-                      <td className="py-2 px-2 text-center font-bold text-amber-700">
-                        {row.levelHots_C4C6}
-                      </td>
+                      <td className="py-2 px-2 text-center font-bold text-amber-700">{row.levelHots_C4C6}</td>
                       <td className="py-2 px-3 text-center font-mono">{row.noSoalPg}</td>
                       <td className="py-2 px-3 text-center font-mono">{row.noSoalUraian}</td>
-                      <td className="py-2 px-3 text-center font-bold text-slate-900">
-                        {row.totalButir}
-                      </td>
+                      <td className="py-2 px-3 text-center font-bold text-slate-900">{row.totalButir}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -573,7 +591,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
           </div>
         )}
 
-        {/* Tab 2: Naskah Butir Soal */}
         {activeTab === 'naskah' && (
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -581,33 +598,20 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
                 <h4 className="font-extrabold text-sm text-slate-900">
                   Daftar Naskah Butir Soal &amp; Kunci Jawaban Lengkap
                 </h4>
-                <p className="text-xs text-slate-500">
-                  Dapat diedit langsung. Format siap salin ke Word atau Google Docs.
-                </p>
+                <p className="text-xs text-slate-500">Dapat diedit langsung. Format siap salin ke Word atau Google Docs.</p>
               </div>
             </div>
 
             <div className="space-y-3">
               {data.questions.map((q) => {
                 const isEditing = editingQuestionId === q.id;
-
                 return (
-                  <div
-                    key={q.id}
-                    className="p-4 rounded-xl border-2 border-slate-200 hover:border-slate-400 bg-white transition space-y-2"
-                  >
-                    {/* Header info */}
+                  <div key={q.id} className="p-4 rounded-xl border-2 border-slate-200 hover:border-slate-400 bg-white transition space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-xs px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white">
-                          No. {q.id}
-                        </span>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border">
-                          {q.type}
-                        </span>
-                        <span className="text-[11px] font-bold text-indigo-700">
-                          {q.tpCode}
-                        </span>
+                        <span className="font-black text-xs px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white">No. {q.id}</span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border">{q.type}</span>
+                        <span className="text-[11px] font-bold text-indigo-700">{q.tpCode}</span>
                         <span className="text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
                           Level {q.cognitiveLevel} ({q.levelLabel})
                         </span>
@@ -621,7 +625,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
                       </button>
                     </div>
 
-                    {/* Question text */}
                     {isEditing ? (
                       <textarea
                         value={q.questionText}
@@ -630,33 +633,20 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
                         className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-indigo-500 font-medium"
                       />
                     ) : (
-                      <p className="text-xs font-semibold text-slate-900 whitespace-pre-line leading-relaxed">
-                        {q.questionText}
-                      </p>
+                      <p className="text-xs font-semibold text-slate-900 whitespace-pre-line leading-relaxed">{q.questionText}</p>
                     )}
 
-                    {/* Options (PG) */}
                     {q.options && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                         {q.options.map((opt) => (
-                          <div
-                            key={opt.key}
-                            className={`p-2 rounded-lg text-xs flex items-center gap-2 border ${
-                              opt.key === q.correctAnswer
-                                ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-950'
-                                : 'bg-slate-50 border-slate-200 text-slate-700'
-                            }`}
-                          >
-                            <span className="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center font-bold text-[10px]">
-                              {opt.key}
-                            </span>
+                          <div key={opt.key} className={`p-2 rounded-lg text-xs flex items-center gap-2 border ${opt.key === q.correctAnswer ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-950' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+                            <span className="w-5 h-5 rounded-full bg-white border border-slate-300 flex items-center justify-center font-bold text-[10px]">{opt.key}</span>
                             <span>{opt.text}</span>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* Answer key & explanation */}
                     <div className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-300 text-xs text-emerald-900 mt-2">
                       <div className="font-bold mb-0.5">
                         ✅ Kunci Jawaban: <span className="font-black">{q.correctAnswer}</span> (Skor Maksimal: {q.scoreMax})
@@ -672,7 +662,6 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
           </div>
         )}
 
-        {/* Tab 3: Kartu Soal Standar Dinas */}
         {activeTab === 'kartu' && (
           <div className="p-5 space-y-4">
             <div>
@@ -686,59 +675,36 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
 
             <div className="space-y-4">
               {data.kartuSoal.map((ks) => (
-                <div
-                  key={ks.noSoal}
-                  className="rounded-xl border-2 border-slate-900 overflow-hidden bg-white shadow-xs"
-                >
+                <div key={ks.noSoal} className="rounded-xl border-2 border-slate-900 overflow-hidden bg-white shadow-xs">
                   <div className="bg-slate-100 px-4 py-2 border-b-2 border-slate-900 flex items-center justify-between">
-                    <span className="font-black text-xs text-slate-900 uppercase">
-                      KARTU SOAL NOMOR {ks.noSoal}
-                    </span>
-                    <span className="text-[11px] font-bold text-indigo-700">
-                      {ks.tpCode} · Level {ks.level}
-                    </span>
+                    <span className="font-black text-xs text-slate-900 uppercase">KARTU SOAL NOMOR {ks.noSoal}</span>
+                    <span className="text-[11px] font-bold text-indigo-700">{ks.tpCode} · Level {ks.level}</span>
                   </div>
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                     <div>
                       <div className="mb-2">
-                        <span className="font-bold text-slate-500 text-[10px] uppercase block">
-                          Materi Pembelajaran:
-                        </span>
+                        <span className="font-bold text-slate-500 text-[10px] uppercase block">Materi Pembelajaran:</span>
                         <span className="font-bold text-slate-900">{ks.materi}</span>
                       </div>
                       <div className="mb-2">
-                        <span className="font-bold text-slate-500 text-[10px] uppercase block">
-                          Indikator Soal:
-                        </span>
+                        <span className="font-bold text-slate-500 text-[10px] uppercase block">Indikator Soal:</span>
                         <span className="text-slate-800">{ks.indicator}</span>
                       </div>
                       <div className="mb-2">
-                        <span className="font-bold text-slate-500 text-[10px] uppercase block">
-                          Buku Sumber:
-                        </span>
+                        <span className="font-bold text-slate-500 text-[10px] uppercase block">Buku Sumber:</span>
                         <span className="text-slate-600 italic">{ks.bukuSumber}</span>
                       </div>
                     </div>
 
                     <div className="border-t md:border-t-0 md:border-l border-slate-200 md:pl-4">
                       <div className="mb-2">
-                        <span className="font-bold text-slate-500 text-[10px] uppercase block">
-                          Rumusan Butir Soal:
-                        </span>
-                        <p className="font-medium text-slate-900 whitespace-pre-line bg-slate-50 p-2 rounded-lg border border-slate-200">
-                          {ks.soalText}
-                        </p>
+                        <span className="font-bold text-slate-500 text-[10px] uppercase block">Rumusan Butir Soal:</span>
+                        <p className="font-medium text-slate-900 whitespace-pre-line bg-slate-50 p-2 rounded-lg border border-slate-200">{ks.soalText}</p>
                       </div>
                       <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-300">
-                        <span className="font-bold text-emerald-950 block mb-0.5">
-                          Kunci &amp; Pedoman Penskoran:
-                        </span>
-                        <span className="font-black text-emerald-900 block mb-1">
-                          {ks.kunciJawaban}
-                        </span>
-                        <p className="text-[11px] text-emerald-800 whitespace-pre-line">
-                          {ks.pedomanPenskoran}
-                        </p>
+                        <span className="font-bold text-emerald-950 block mb-0.5">Kunci &amp; Pedoman Penskoran:</span>
+                        <span className="font-black text-emerald-900 block mb-1">{ks.kunciJawaban}</span>
+                        <p className="text-[11px] text-emerald-800 whitespace-pre-line">{ks.pedomanPenskoran}</p>
                       </div>
                     </div>
                   </div>
