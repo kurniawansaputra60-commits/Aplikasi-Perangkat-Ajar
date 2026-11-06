@@ -12,6 +12,9 @@ interface Step4Props {
 export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
   const activePkg = appState.packages.find((p) => p.id === appState.activePackageId) || appState.packages[0];
   const phaseMismatch = Boolean(activePkg?.phase && cp.phase && activePkg.phase.toLowerCase() !== cp.phase.toLowerCase());
+  // Prefer the explicit AI draft, but fall back to the currently saved ATP list so it is still visible
+  // if older persisted app state does not yet contain cp.derivedAtp.
+  const derivedAtpDraft = cp.derivedAtp?.length ? cp.derivedAtp : appState.atp || [];
 
   const updateElement = (idx: number, field: keyof CpElement, val: any) => {
     const updated = [...(cp.elements || [])];
@@ -80,7 +83,7 @@ export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   {el.matchesSubject ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1"><Check className="w-3 h-3" /> Sesuai</span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1"><Check className="w-3 h-3" /> Ditandai sesuai</span>
                   ) : (
                     <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-300">Perlu diperiksa</span>
                   )}
@@ -101,7 +104,7 @@ export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
         </div>
       </div>
 
-      <DerivedAtpDraft items={cp.derivedAtp || []} packageName={activePkg?.name || 'Paket aktif'} />
+      <DerivedAtpDraft items={derivedAtpDraft} packageName={activePkg?.name || 'Paket aktif'} />
     </div>
   );
 };
