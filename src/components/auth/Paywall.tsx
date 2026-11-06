@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Lock, Sparkles, CheckCircle2, ShieldCheck, CreditCard, LogOut, ArrowRight } from 'lucide-react';
+import { TermsOfService } from '../legal/TermsOfService';
 
 export const Paywall = () => {
   const { signOut, user, activatePremium } = useAuthStore();
   const [activating, setActivating] = useState(false);
+  const [isTosOpen, setIsTosOpen] = useState(false);
 
   const handleBuy = () => {
     setActivating(true);
@@ -83,14 +85,26 @@ export const Paywall = () => {
           </button>
         </div>
 
-        <button
-          onClick={signOut}
-          className="text-xs font-bold text-slate-500 hover:text-slate-900 underline flex items-center justify-center gap-1 mx-auto transition-colors"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Bukan akun Anda? Keluar</span>
-        </button>
+        <div className="pt-2 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsTosOpen(true)}
+            className="text-[11px] font-bold text-indigo-700 hover:text-indigo-950 underline"
+          >
+            Syarat &amp; Ketentuan Layanan (ToS) · Bantuan WhatsApp / Email
+          </button>
+
+          <button
+            onClick={signOut}
+            className="text-xs font-bold text-slate-500 hover:text-slate-900 underline flex items-center justify-center gap-1 mx-auto transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Bukan akun Anda? Keluar</span>
+          </button>
+        </div>
       </div>
+
+      <TermsOfService isOpen={isTosOpen} onClose={() => setIsTosOpen(false)} isModal={true} />
     </div>
   );
 };

@@ -21,6 +21,7 @@ import { PackageModal } from './components/modals/PackageModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { AuthModal } from './components/modals/AuthModal';
 import { PaymentModal } from './components/modals/PaymentModal';
+import { TermsOfService } from './components/legal/TermsOfService';
 
 // Auth Protection
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -57,6 +58,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isTosModalOpen, setIsTosModalOpen] = useState(false);
 
   const handleSelectStep = (stepNumber: number) => {
     store.setCurrentStep(stepNumber);
@@ -112,6 +114,7 @@ export default function App() {
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenPaymentModal={() => setIsPaymentModalOpen(true)}
+        onOpenTosModal={() => setIsTosModalOpen(true)}
         lastSavedAt={store.lastSavedAt}
       />
 
@@ -314,6 +317,12 @@ export default function App() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         onSuccess={() => {}}
+      />
+
+      <TermsOfService
+        isOpen={isTosModalOpen}
+        onClose={() => setIsTosModalOpen(false)}
+        isModal={true}
       />
     </div>
     </ProtectedRoute>

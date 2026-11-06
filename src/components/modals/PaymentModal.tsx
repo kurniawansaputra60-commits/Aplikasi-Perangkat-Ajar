@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { KeyRound, X, Sparkles, ShieldCheck } from 'lucide-react';
 import { activateProLicense, getCurrentUserAccount } from '../../services/supabaseClient';
+import { TermsOfService } from '../legal/TermsOfService';
 
 interface PaymentModalProps { isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [inputCode, setInputCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showTos, setShowTos] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ isError: boolean; text: string } | null>(null);
   if (!isOpen) return null;
   const currentUser = getCurrentUserAccount();
@@ -41,8 +43,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
           </form>
         )}
         {statusMsg && <div role={statusMsg.isError ? 'alert' : 'status'} className={`mt-4 p-3 rounded-xl border text-xs font-bold ${statusMsg.isError ? 'bg-rose-100 border-rose-300 text-rose-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800'}`}>{statusMsg.text}</div>}
-        <div className="flex items-center gap-2 mt-4 text-[11px] text-slate-500 justify-center"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /><span>Verifikasi menggunakan sesi akun Supabase.</span></div>
+        <div className="flex flex-col items-center gap-1.5 mt-4 text-[11px] text-slate-500 justify-center">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Verifikasi lisensi menggunakan sesi akun Supabase.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowTos(true)}
+            className="text-indigo-700 hover:text-indigo-950 font-bold underline"
+          >
+            Butuh bantuan / Baca Syarat Layanan &amp; Kontak WhatsApp
+          </button>
+        </div>
       </div>
+      <TermsOfService isOpen={showTos} onClose={() => setShowTos(false)} isModal={true} />
     </div>
   );
 };

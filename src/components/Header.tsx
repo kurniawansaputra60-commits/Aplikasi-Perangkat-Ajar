@@ -27,6 +27,7 @@ interface HeaderProps {
   onOpenSettingsModal: () => void;
   onOpenAuthModal: () => void;
   onOpenPaymentModal: () => void;
+  onOpenTosModal?: () => void;
   lastSavedAt: string;
 }
 
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettingsModal,
   onOpenAuthModal,
   onOpenPaymentModal,
+  onOpenTosModal,
 }) => {
   const user = getCurrentUserAccount();
   const hasByok = Boolean(getGeminiApiKey());
@@ -172,6 +174,17 @@ export const Header: React.FC<HeaderProps> = ({
             <Scale className="w-3.5 h-3.5 text-slate-600" />
             <span>Acuan Hukum</span>
           </button>
+
+          {/* Ketentuan Layanan & Bantuan */}
+          {onOpenTosModal && (
+            <button
+              onClick={onOpenTosModal}
+              className="flex items-center gap-1.5 bg-sky-100 hover:bg-sky-200 text-sky-950 text-xs font-bold px-3 py-1.5 rounded-lg border-2 border-slate-900 shadow-sm transition active:translate-y-0.5"
+              title="Syarat & Ketentuan Layanan (ToS) serta Kontak Bantuan WhatsApp/Email"
+            >
+              <span>Ketentuan &amp; Bantuan</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

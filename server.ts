@@ -13,10 +13,20 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-// Keep local development aligned with the standalone Vercel API implementation.
-app.use('/api', (req, res) => apiHandler(req, res));
+// Forward all /api requests to apiHandler with full error catching
+app.use('/api', async (req, res) => {
+  try {
+    await apiHandler(req, res);
+  } catch (error: any) {
+    console.error('API Error in server.ts:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error?.message || 'Internal Server Error' });
+    }
+  }
+});
 
 async function startServer() {
   if (process.env.VERCEL || process.env.NOW_REGION) return;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { getSupabaseClient } from '../../services/supabaseClient';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Lock, Mail, User, BookOpen, CheckCircle2, ShieldCheck, ArrowRight, Key } from 'lucide-react';
+import { TermsOfService } from '../legal/TermsOfService';
 
 export const AuthContainer = () => {
   const [isLoginView, setIsLoginView] = useState(true);
@@ -9,6 +10,7 @@ export const AuthContainer = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showTos, setShowTos] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const { checkSession, activatePremium } = useAuthStore();
@@ -179,8 +181,20 @@ export const AuthContainer = () => {
               Akses Langsung Demo / Mode Guru Merdeka
             </button>
           </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setShowTos(true)}
+              className="text-[10px] text-slate-500 hover:text-slate-800 underline"
+            >
+              Syarat &amp; Ketentuan Layanan (ToS) · Bantuan WhatsApp &amp; Email
+            </button>
+          </div>
         </div>
       </div>
+
+      <TermsOfService isOpen={showTos} onClose={() => setShowTos(false)} isModal={true} />
     </div>
   );
 };

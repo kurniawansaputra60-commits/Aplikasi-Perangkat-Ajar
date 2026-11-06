@@ -23,30 +23,45 @@ Di **Vercel → Project → Settings → Environment Variables**, tambahkan untu
 | `SUPABASE_URL` | `https://jefbqoimnzytamaaazjo.supabase.co` |
 | `SUPABASE_ANON_KEY` | Supabase anon/public key yang sama |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role/secret key, server only |
+| `MIDTRANS_SERVER_KEY` | Server Key dari Midtrans Dashboard (Production / Sandbox) |
 | `GEMINI_API_KEY` | Opsional; server Gemini key |
 
-**Jangan** beri prefix `VITE_` kepada service-role key. Jangan commit rahasia ke GitHub. Jika service-role key pernah dipublikasikan, rotasi segera.
+**Jangan** beri prefix `VITE_` kepada service-role key atau Midtrans server key. Jangan commit rahasia ke GitHub.
 
 Setelah menambah/mengubah variables, jalankan **Redeploy**. Kunjungi `/api/health`; hasilnya harus JSON dengan `status: ok`.
 
 ## C. Tes sebelum membuka ke pelanggan
 
-1. Buat akun percobaan baru, konfirmasi email jika fitur itu aktif, lalu login.
-2. Uji simpan/muat data di cloud. Buat akun kedua dan pastikan tidak bisa membaca data akun pertama.
-3. Periksa RLS di Supabase; jangan menonaktifkannya untuk mengatasi error.
-4. Pastikan alur email dan redirect berfungsi di URL produksi dan preview.
-5. Uji aktivasi kode valid satu kali, lalu uji ulang kode yang sama dan pastikan ditolak.
-6. Jalankan `npm run build` secara lokal atau periksa hasil deployment build Vercel.
-7. Buat backup database dan siapkan kontak dukungan, kebijakan privasi, syarat layanan, dan refund sebelum penjualan.
+1. Jalankan migrasi SQL kedua di Supabase SQL Editor: `supabase/migrations/202611050002_add_payments_table.sql` untuk membuat tabel `payments` dan kolom `is_premium`.
+2. Buat akun percobaan baru, konfirmasi email jika fitur itu aktif, lalu login.
+3. Uji simpan/muat data di cloud. Buat akun kedua dan pastikan tidak bisa membaca data akun pertama.
+4. Periksa RLS di Supabase; jangan menonaktifkannya untuk mengatasi error.
+5. Pastikan alur email dan redirect berfungsi di URL produksi dan preview.
+6. Uji aktivasi kode valid satu kali, lalu uji ulang kode yang sama dan pastikan ditolak.
+7. Jalankan `npm run build` secara lokal atau periksa hasil deployment build Vercel.
 
-## D. Pembayaran dan lisensi
+## D. Otomatisasi Pembayaran Midtrans (Webhook)
 
-Saat ini aplikasi **belum terhubung ke payment gateway**. Jangan gunakan QR/nomor VA simulasi atau mengaktifkan lisensi hanya karena pengguna menekan tombol. PaymentModal sekarang hanya menerima kode lisensi yang sudah diterbitkan setelah pembayaran diverifikasi.
+Webhook Midtrans telah terpasang di endpoint:
+- `POST /api/webhook/midtrans`
 
-Untuk peluncuran awal, lakukan pembayaran secara manual melalui kanal bisnis Anda, verifikasi dana secara manual, lalu terbitkan satu kode acak unik per transaksi. Simpan hanya hash SHA-256 kode di `licenses` menggunakan contoh SQL di file migration. Berikan kode asli kepada pembeli melalui kanal tepercaya. Endpoint aktivasi akan mengikat kode ke akun Supabase dan mencegah penggunaan ulang.
+**Alur Keamanan dan Kerja Webhook:**
+1. **Validasi Signature SHA512**: Sistem menghitung `SHA512(order_id + status_code + gross_amount + MIDTRANS_SERVER_KEY)`. Permintaan palsu atau tanpa tanda tangan valid otomatis ditolak dengan `403 Forbidden`.
+2. **Auto-Generate Kode Lisensi**: Ketika status transaksi `settlement` atau `capture` (accept), server secara otomatis meng-generate lisensi unik `EDU-XXXXXX`.
+3. **Penyimpanan Terenkripsi**: Lisensi di-hash dengan SHA-256 dan disimpan ke tabel `licenses`, serta status order di tabel `payments` diubah menjadi `PAID`.
+4. **Auto-Aktivasi Akun (Opsional)**: Jika saat pembuatan Snap Token Anda menyertakan `custom_field1: user.id`, webhook akan langsung mengaktifkan `is_premium: true` di profil pengguna tanpa mengharuskan pengguna mengetikkan kode secara manual.
 
-Untuk pembayaran otomatis, pilih provider yang mendukung bisnis Anda (contoh Midtrans atau Xendit), buat transaksi dari endpoint server, verifikasi signature webhook dari provider di server, dan baru setelah status pembayaran terverifikasi terbitkan lisensi. Jangan mempercayai redirect browser, screenshot bukti bayar, atau status yang dikirim dari frontend. Integrasi provider belum dapat diselesaikan tanpa akun merchant, kredensial sandbox/live, dan konfigurasi webhook milik Anda.
+**Konfigurasi di Dashboard Midtrans:**
+- Buka **Midtrans Dashboard → Settings → Configuration**.
+- Masukkan Payment Notification URL: `https://aplikasi-perangkat-ajar-v1.vercel.app/api/webhook/midtrans`
+- Simpan perubahan.
 
-## E. Batasan dan langkah yang perlu dilakukan pemilik
+## E. Syarat dan Ketentuan (Terms of Service) & Dukungan
 
-Perubahan repo menyiapkan struktur dan endpoint, tetapi saya tidak dapat menjalankan SQL di dashboard Supabase, memasukkan secret ke Vercel, atau menekan Deploy tanpa akses akun tersebut. Anda perlu melakukan langkah A dan B. Sesudah itu, Vercel dapat melakukan deployment dari commit terbaru. Jangan bagikan service-role key atau password dashboard di chat.
+Halaman Syarat dan Ketentuan Layanan (ToS) telah terpasang lengkap dengan tombol kontak dukungan WhatsApp dan Email, dan dapat diakses melalui:
+1. Tombol **Ketentuan & Bantuan** di Header navigasi atas.
+2. Link di halaman Paywall (Akses Terkunci).
+3. Link di Modal Aktivasi Lisensi Pro.
+4. Link di Halaman Masuk / Registrasi Guru.
+
+Untuk mengubah nomor WhatsApp atau Email dukungan resmi, Anda dapat mengedit variabel `supportWhatsApp` dan `supportEmail` di berkas `src/components/legal/TermsOfService.tsx`.
