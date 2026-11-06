@@ -22,6 +22,9 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { AuthModal } from './components/modals/AuthModal';
 import { PaymentModal } from './components/modals/PaymentModal';
 
+// Auth Protection
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+
 // Step Views
 import { Step1Profile } from './components/steps/Step1Profile';
 import { Step2Packages } from './components/steps/Step2Packages';
@@ -94,7 +97,8 @@ export default function App() {
     store.lkpd[store.activeModuleTp] || Object.values(store.lkpd)[0];
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
       {/* Top Header Navbar */}
       <Header
         packages={store.packages}
@@ -312,5 +316,6 @@ export default function App() {
         onSuccess={() => {}}
       />
     </div>
+    </ProtectedRoute>
   );
 }
