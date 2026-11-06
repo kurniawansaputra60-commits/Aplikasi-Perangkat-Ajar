@@ -73,7 +73,7 @@ export const Step1Profile: React.FC<Step1Props> = ({ profile, onChange }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
               Kecamatan
@@ -98,16 +98,27 @@ export const Step1Profile: React.FC<Step1Props> = ({ profile, onChange }) => {
           </div>
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-              Provinsi &amp; Kode Pos
+              Provinsi
             </label>
             <input
               type="text"
-              value={`${profile.province} ${profile.postalCode}`}
-              onChange={(e) => {
-                const parts = e.target.value.split(' ');
-                update('province', parts.slice(0, -1).join(' ') || e.target.value);
-                update('postalCode', parts[parts.length - 1] || '');
-              }}
+              value={profile.province}
+              onChange={(e) => update('province', e.target.value)}
+              placeholder="Contoh: DKI Jakarta"
+              autoComplete="address-level1"
+              className="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              Kode Pos
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              value={profile.postalCode}
+              onChange={(e) => update('postalCode', e.target.value)}
               className="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"
             />
           </div>
