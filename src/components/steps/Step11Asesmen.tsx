@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AssessmentPlanItem, AppState } from '../../types';
 import { ClipboardList, Sparkles, Plus, Trash2 } from 'lucide-react';
-import { requestAiGeneration } from '../../services/aiService';
+import { requestAiGeneration, parseAiJson, buildCurriculumContext } from '../../services/aiService';
 
 interface Step11Props {
   plans: AssessmentPlanItem[];
@@ -19,11 +19,63 @@ export const Step11Asesmen: React.FC<Step11Props> = ({ plans, onChange, appState
     setErrorMsg(null);
     setIsGenerating(true);
     try {
-      await requestAiGeneration({
-        type: 'assessment_plan',
-        prompt: `Susun rencana asesmen komprehensif (Asesmen Awal, Formatif Proses, dan Sumatif Akhir) untuk mata pelajaran ${activePkg.subject}.`,
-        context: { subject: activePkg.subject },
+      const curriculum = buildCurriculumContext(appState);
+      const tpCodes = (appState.atp || []).map((t) => t.code).slice(0, 4);
+      const prompt = `Anda adalah pakar asesmen Kurikulum Merdeka.
+Susun rencana asesmen komprehensif (Awal Diagnostik, Formatif Proses, dan Sumatif Akhir) untuk:
+- Mata Pelajaran: ${activePkg.subject}
+- Kelas: ${activePkg.grade}
+- Tema / Materi: ${activePkg.themeTopic || 'Materi Pembelajaran'}
+- Kode TP Terkait: ${tpCodes.join(', ') || 'TP 1, TP 2'}
+
+Format KELUARAN HARUS berupa ARRAY JSON valid murni tanpa teks obrolan dengan skema:
+[
+  {
+    "type": "Awal (Diagnostik)",
+    "tpCode": "${tpCodes[0] || 'TP 1'}",
+    "technique": "Tes Tertulis / Tanya Jawab Pemantik",
+    "instrument": "Rubrik Kesiapan Belajar & Kuis Singkat",
+    "timing": "Awal Siklus Pertemuan 1",
+    "details": "Memetakan pemahaman awal murid mengenai konsep prasyarat."
+  },
+  {
+    "type": "Proses (Formatif)",
+    "tpCode": "${tpCodes[0] || 'TP 1'}",
+    "technique": "Observasi & Diskusi Kelompok",
+    "instrument": "Lembar Catatan Anekdot & Refleksi Diri",
+    "timing": "Selama Aktivitas Investigasi",
+    "details": "Menilai keaktifan bernalar kritis dan kerja sama tim."
+  },
+  {
+    "type": "Akhir (Sumatif)",
+    "tpCode": "${tpCodes[1] || 'TP 2'}",
+    "technique": "Tes Tertulis & Unjuk Kerja Proyek",
+    "instrument": "Soal Penalaran HOTS & Lembar Penilaian Kinerja",
+    "timing": "Akhir Bab / Lingkup Materi",
+    "details": "Mengukur ketercapaian tujuan pembelajaran secara menyeluruh."
+  }
+]`;
+
+      const res = await requestAiGeneration({
+        type: 'step11_assessment_plan',
+        prompt,
+        isJsonMode: true,
+        materi: activePkg.themeTopic,
+        kelas: activePkg.grade,
+        durasi: 2,
+        kompetensi: activePkg.subject,
+        context: {
+          subject: activePkg.subject,
+          grade: activePkg.grade,
+          materi: activePkg.themeTopic,
+          ...curriculum,
+        },
       });
+
+      const parsed = parseAiJson<AssessmentPlanItem[]>(res, []);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        onChange(parsed);
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal memproses AI');
     } finally {

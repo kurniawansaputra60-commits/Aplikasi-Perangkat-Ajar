@@ -88,7 +88,11 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut (jangan tambahkan tek
         type: 'step12_click1_kisi',
         prompt,
         isJsonMode: true,
-        context: { subject: activePkg.subject, materi: data.assessmentName },
+        materi: data.assessmentName,
+        kelas: activePkg.grade,
+        durasi: 2,
+        kompetensi: activePkg.subject,
+        context: { subject: activePkg.subject, grade: activePkg.grade, materi: data.assessmentName },
       });
 
       const parsedMatrix = parseAiJson<any[]>(response, []);
@@ -143,7 +147,11 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
         type: 'step12_click2_soal',
         prompt,
         isJsonMode: true,
-        context: { subject: activePkg.subject, materi: data.assessmentName },
+        materi: data.assessmentName,
+        kelas: activePkg.grade,
+        durasi: 2,
+        kompetensi: activePkg.subject,
+        context: { subject: activePkg.subject, grade: activePkg.grade, materi: data.assessmentName },
       });
 
       const parsedQuestions = parseAiJson<any[]>(response, []);
@@ -188,7 +196,11 @@ Kembalikan HANYA format JSON ARRAY dengan struktur berikut:
         type: 'step12_click3_kartu',
         prompt,
         isJsonMode: true,
-        context: { subject: activePkg.subject, materi: data.assessmentName },
+        materi: data.assessmentName,
+        kelas: activePkg.grade,
+        durasi: 2,
+        kompetensi: activePkg.subject,
+        context: { subject: activePkg.subject, grade: activePkg.grade, materi: data.assessmentName },
       });
 
       const parsedKartu = parseAiJson<any[]>(response, []);

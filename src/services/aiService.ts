@@ -47,6 +47,57 @@ function cleanErrorMessage(rawMsg: string): string {
   return rawMsg;
 }
 
+/**
+ * Pembersih dan parser JSON tangguh dari respons model Gemini,
+ * tahan terhadap markdown block ```json ... ``` dan whitespace tambahan.
+ */
+export function parseAiJson<T>(rawText: string, fallback: T): T {
+  if (!rawText || typeof rawText !== 'string') return fallback;
+  try {
+    const cleaned = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+    return JSON.parse(cleaned);
+  } catch (_) {
+    try {
+      const match = rawText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+      if (match) {
+        return JSON.parse(match[0]);
+      }
+    } catch (_) {}
+  }
+  return fallback;
+}
+
+/**
+ * Ekstraktor ringkasan kurikulum terpusat dari state aplikasi
+ * agar prompt di langkah 9, 10, 11, 12 selalu terhubung secara sinkron.
+ */
+export function buildCurriculumContext(appState: any) {
+  if (!appState) return {};
+  const activePkg =
+    appState.packages?.find((p: any) => p.id === appState.activePackageId) ||
+    appState.packages?.[0] ||
+    {};
+
+  return {
+    teacherName: appState.profile?.teacherName || '',
+    schoolName: appState.profile?.schoolName || '',
+    grade: activePkg.grade || appState.profile?.classGrade || 'Fase B - Kelas IV',
+    subject: activePkg.subject || 'Pendidikan Pancasila',
+    themeTopic: activePkg.themeTopic || 'Norma dan Aturan Kehidupan',
+    semester: activePkg.semester || '1',
+    academicYear: appState.profile?.academicYear || '2026/2027',
+    totalJp: appState.calendar?.totalJpSemester || 72,
+    atpSummary: (appState.atp || [])
+      .map((t: any) => `${t.code}: ${t.scopeContent} (${t.allocatedJp || 10} JP) - ${t.learningObjective}`)
+      .slice(0, 6)
+      .join('\n'),
+  };
+}
+
 export async function requestAiGeneration(payload: AiGenerationPayload): Promise<string> {
   const userApiKey =
     typeof window !== 'undefined' ? localStorage.getItem('user_gemini_api_key') : null;

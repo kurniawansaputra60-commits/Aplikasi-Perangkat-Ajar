@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LkpdData, AppState } from '../../types';
 import { FileSpreadsheet, Sparkles, Plus, Trash2 } from 'lucide-react';
-import { requestAiGeneration } from '../../services/aiService';
+import { requestAiGeneration, parseAiJson, buildCurriculumContext } from '../../services/aiService';
 
 interface Step10Props {
   lkpd: LkpdData;
@@ -19,11 +19,70 @@ export const Step10Lkpd: React.FC<Step10Props> = ({ lkpd, onChange, appState }) 
     setErrorMsg(null);
     setIsGenerating(true);
     try {
-      await requestAiGeneration({
-        type: 'lkpd',
-        prompt: `Buat Lembar Kerja Peserta Didik (LKPD) kontekstual untuk materi ${activePkg.themeTopic} pada mata pelajaran ${activePkg.subject}.`,
-        context: { subject: activePkg.subject, materi: activePkg.themeTopic },
+      const curriculum = buildCurriculumContext(appState);
+      const prompt = `Anda adalah pakar penyusun perangkat ajar Kurikulum Merdeka dan Pembelajaran Mendalam (Deep Learning).
+Buatlah Lembar Kerja Peserta Didik (LKPD) kontekstual dan bermakna untuk:
+- Mata Pelajaran: ${activePkg.subject}
+- Kelas: ${activePkg.grade}
+- Tema / Materi Pokok: ${activePkg.themeTopic || 'Materi Inti'}
+- Sekolah: ${curriculum.schoolName || 'Sekolah Dasar'}
+
+Format KELUARAN HARUS berupa SATU objek JSON valid murni tanpa teks pengantar dengan skema:
+{
+  "title": "LKPD Eksplorasi: ${activePkg.themeTopic || activePkg.subject}",
+  "groupType": "Kelompok Kolaboratif (4-5 Murid)",
+  "estimatedTime": "2 JP (70 Menit)",
+  "contextualStimulus": "Cerita kasus otentik atau fenomena kehidupan sehari-hari anak...",
+  "toolsAndMaterials": ["Alat/bahan 1", "Alat/bahan 2", "Alat/bahan 3"],
+  "investigationSteps": [
+    "1. Amati stimulus fenomena yang disajikan...",
+    "2. Diskusikan bersama kelompok mengenai...",
+    "3. Catat hasil observasi pada tabel..."
+  ],
+  "tableHeaders": ["No", "Aspek Pengamatan", "Hasil Pengamatan", "Analisis & Makna"],
+  "tableRows": [
+    ["1", "Aspek pertama...", "Data teramati...", "Penjelasan makna..."],
+    ["2", "Aspek kedua...", "Data teramati...", "Penjelasan makna..."]
+  ],
+  "discussionQuestions": [
+    "1. Mengapa hal tersebut dapat terjadi dalam kehidupan sehari-hari?",
+    "2. Apa kesimpulan yang dapat kelompok Anda rumuskan?"
+  ],
+  "reflectionPrompt": "Apa pemahaman paling berharga yang saya dapatkan hari ini dan bagaimana menerapkannya?"
+}`;
+
+      const res = await requestAiGeneration({
+        type: 'step10_lkpd',
+        prompt,
+        isJsonMode: true,
+        materi: activePkg.themeTopic,
+        kelas: activePkg.grade,
+        durasi: 2,
+        kompetensi: activePkg.subject,
+        context: {
+          subject: activePkg.subject,
+          grade: activePkg.grade,
+          materi: activePkg.themeTopic,
+          ...curriculum,
+        },
       });
+
+      const parsed = parseAiJson<Partial<LkpdData>>(res, {});
+      if (parsed && typeof parsed === 'object') {
+        onChange({
+          ...lkpd,
+          title: parsed.title || lkpd.title,
+          groupType: parsed.groupType || lkpd.groupType,
+          estimatedTime: parsed.estimatedTime || lkpd.estimatedTime,
+          contextualStimulus: parsed.contextualStimulus || lkpd.contextualStimulus,
+          toolsAndMaterials: Array.isArray(parsed.toolsAndMaterials) && parsed.toolsAndMaterials.length > 0 ? parsed.toolsAndMaterials : lkpd.toolsAndMaterials,
+          investigationSteps: Array.isArray(parsed.investigationSteps) && parsed.investigationSteps.length > 0 ? parsed.investigationSteps : lkpd.investigationSteps,
+          tableHeaders: Array.isArray(parsed.tableHeaders) && parsed.tableHeaders.length > 0 ? parsed.tableHeaders : lkpd.tableHeaders,
+          tableRows: Array.isArray(parsed.tableRows) && parsed.tableRows.length > 0 ? parsed.tableRows : lkpd.tableRows,
+          discussionQuestions: Array.isArray(parsed.discussionQuestions) && parsed.discussionQuestions.length > 0 ? parsed.discussionQuestions : lkpd.discussionQuestions,
+          reflectionPrompt: parsed.reflectionPrompt || lkpd.reflectionPrompt,
+        });
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal memproses AI');
     } finally {
