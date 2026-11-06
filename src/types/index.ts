@@ -64,6 +64,8 @@ export interface CapaianPembelajaranData {
   phase: string;
   elements: CpElement[];
   isVerified: boolean;
+  /** ATP-derived learning objectives are drafts and do not replace official CP elements. */
+  derivedAtp?: AtpItem[];
 }
 
 export interface AtpItem {
@@ -97,7 +99,7 @@ export interface PromesRow {
   tpCode: string;
   material: string;
   totalJp: number;
-  weeks: { [key: string]: number }; // e.g. "m0_w1": 5
+  weeks: { [key: string]: number };
 }
 
 export interface KktpInterval {
@@ -131,8 +133,6 @@ export interface DeepLearningModule {
   topicTitle: string;
   totalMeetings: number;
   allocatedJp: number;
-  
-  // Klik 1: Identifikasi
   step1: {
     studentCharacteristics: string;
     initialKnowledge: string;
@@ -143,8 +143,6 @@ export interface DeepLearningModule {
     selectedDimensions: string[];
     dimensionsContext: string;
   };
-
-  // Klik 2: Desain Pembelajaran
   step2: {
     cpStatement: string;
     crossDisciplinary: string;
@@ -153,8 +151,6 @@ export interface DeepLearningModule {
     guidingQuestions: string;
     partnershipsAndEnvironment: string;
   };
-
-  // Klik 3: Pengalaman Belajar
   step3: {
     mindfulBeginning: string;
     meaningfulCoreUnderstand: string;
@@ -162,16 +158,12 @@ export interface DeepLearningModule {
     reflectiveCoreReflect: string;
     closingSummary: string;
   };
-
-  // Klik 4: Asesmen
   step4: {
     initialDiagnostic: string;
     processAssessment: string;
     finalAssessmentTypes: string[];
     finalAssessmentDesc: string;
   };
-
-  // Klik 5: KKTP & Lampiran
   step5: {
     kktpCriteria: string;
     remedialAndEnrichment: string;
@@ -180,14 +172,7 @@ export interface DeepLearningModule {
     processChecklist: string;
     finalQuestions: { question: string; rubric: string; scoreMax: number }[];
   };
-
-  clicksCompleted: {
-    1: boolean;
-    2: boolean;
-    3: boolean;
-    4: boolean;
-    5: boolean;
-  };
+  clicksCompleted: { 1: boolean; 2: boolean; 3: boolean; 4: boolean; 5: boolean };
 }
 
 export interface LkpdData {
@@ -272,9 +257,9 @@ export interface QuestionAnalysisItem {
   tpCode: string;
   level: string;
   type: 'PG' | 'Uraian';
-  difficultyIndex: number; // 0.0 - 1.0
+  difficultyIndex: number;
   difficultyLabel: 'Mudah' | 'Sedang' | 'Sukar';
-  discriminationIndex: number; // -1.0 to 1.0
+  discriminationIndex: number;
   discriminationLabel: 'Jelek' | 'Cukup' | 'Baik' | 'Sangat Baik';
   distractorQuality: string;
   verdict: 'Diterima Baik' | 'Perlu Direvisi' | 'Dibuang / Diganti';
