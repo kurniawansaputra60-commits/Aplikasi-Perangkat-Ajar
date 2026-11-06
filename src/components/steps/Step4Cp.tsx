@@ -1,6 +1,7 @@
 import React from 'react';
 import { CapaianPembelajaranData, CpElement, AppState } from '../../types';
-import { BookCheck, AlertTriangle, ShieldCheck, Check, Info } from 'lucide-react';
+import { BookCheck, AlertTriangle, Check, Info } from 'lucide-react';
+import { DerivedAtpDraft } from './DerivedAtpDraft';
 
 interface Step4Props {
   cp: CapaianPembelajaranData;
@@ -13,7 +14,7 @@ export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
   const phaseMismatch = Boolean(activePkg?.phase && cp.phase && activePkg.phase.toLowerCase() !== cp.phase.toLowerCase());
 
   const updateElement = (idx: number, field: keyof CpElement, val: any) => {
-    const updated = [...cp.elements];
+    const updated = [...(cp.elements || [])];
     updated[idx] = { ...updated[idx], [field]: val };
     onChange({ ...cp, elements: updated, isVerified: false });
   };
@@ -69,20 +70,38 @@ export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 font-black text-xs flex items-center justify-center">{idx + 1}</span>
-                  <input type="text" value={el.name || ''} onChange={(e) => updateElement(idx, 'name', e.target.value)} className="font-bold text-xs text-slate-900 bg-transparent border-b border-dashed border-slate-400 focus:outline-none" aria-label={`Nama elemen CP ${idx + 1}`} />
+                  <input
+                    type="text"
+                    value={el.name || ''}
+                    onChange={(e) => updateElement(idx, 'name', e.target.value)}
+                    className="font-bold text-xs text-slate-900 bg-transparent border-b border-dashed border-slate-400 focus:border-indigo-600 outline-none"
+                    aria-label={`Nama elemen CP ${idx + 1}`}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
-                  {el.matchesSubject ? <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1"><Check className="w-3 h-3" /> Ditandai sesuai</span> : <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Perlu ditinjau</span>}
+                  {el.matchesSubject ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1"><Check className="w-3 h-3" /> Sesuai</span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-300">Perlu diperiksa</span>
+                  )}
                   <button type="button" onClick={() => updateElement(idx, 'matchesSubject', !el.matchesSubject)} className="text-[10px] text-slate-500 hover:text-slate-800 underline">Ubah status</button>
                 </div>
               </div>
-              <textarea value={el.cpText || ''} onChange={(e) => updateElement(idx, 'cpText', e.target.value)} rows={3} className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-indigo-500 leading-relaxed font-normal bg-slate-50/50" aria-label={`Rumusan CP elemen ${idx + 1}`} />
+              <textarea
+                value={el.cpText || ''}
+                onChange={(e) => updateElement(idx, 'cpText', e.target.value)}
+                rows={3}
+                className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-indigo-500 leading-relaxed"
+                aria-label={`Teks CP elemen ${el.name || idx + 1}`}
+              />
               {el.notes && <div className="text-[11px] text-slate-500 mt-1 italic">Catatan: {el.notes}</div>}
             </div>
           ))}
-          {(!cp.elements || cp.elements.length === 0) && <div className="p-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900">Belum ada elemen CP untuk paket ini. Periksa paket dan isi rumusan berdasarkan dokumen resmi sebelum menyusun ATP.</div>}
+          {(!cp.elements || cp.elements.length === 0) && <div className="p-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900">Belum ada elemen CP untuk paket ini. Periksa paket dan fase yang aktif.</div>}
         </div>
       </div>
+
+      <DerivedAtpDraft items={cp.derivedAtp || []} packageName={activePkg?.name || 'Paket aktif'} />
     </div>
   );
 };
