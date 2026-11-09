@@ -1,6 +1,7 @@
 import React from 'react';
 import { CapaianPembelajaranData, CpElement, AppState } from '../../types';
 import { BookCheck, AlertTriangle, ShieldCheck, Check, Info } from 'lucide-react';
+import { DerivedAtpDraft } from './DerivedAtpDraft';
 
 interface Step4Props {
   cp: CapaianPembelajaranData;
@@ -11,6 +12,13 @@ interface Step4Props {
 export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
   const activePkg = appState.packages.find((p) => p.id === appState.activePackageId) || appState.packages[0];
   const phaseMismatch = Boolean(activePkg?.phase && cp.phase && activePkg.phase.toLowerCase() !== cp.phase.toLowerCase());
+
+  const derivedItems =
+    cp.derivedAtp && cp.derivedAtp.length > 0
+      ? cp.derivedAtp
+      : appState.atp && appState.atp.length > 0
+      ? appState.atp
+      : [];
 
   const updateElement = (idx: number, field: keyof CpElement, val: any) => {
     const updated = [...cp.elements];
@@ -83,6 +91,11 @@ export const Step4Cp: React.FC<Step4Props> = ({ cp, onChange, appState }) => {
           {(!cp.elements || cp.elements.length === 0) && <div className="p-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900">Belum ada elemen CP untuk paket ini. Periksa paket dan isi rumusan berdasarkan dokumen resmi sebelum menyusun ATP.</div>}
         </div>
       </div>
+
+      <DerivedAtpDraft
+        items={derivedItems}
+        packageName={activePkg?.name || activePkg?.subject || 'Paket Aktif'}
+      />
     </div>
   );
 };
